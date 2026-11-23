@@ -1,0 +1,29 @@
+{% extends "base.html" %}{% block title %}AAR · {{ e.title }}{% endblock %}
+{% block body %}
+<p class="crumbs"><a href="/aar">← AAR</a></p>
+<section class="aar">
+  <h1>{{ e.title }}</h1>
+  <p><small>{{ e.author }} · {{ e.created_at }}{% if e.edited_by %} · edited by {{ e.edited_by }} {{ e.edited_at }}{% endif %}</small></p>
+  <div class="body">{{ e.body }}</div>
+</section>
+{% if is_admin() %}
+<details>
+  <summary>Edit (admin)</summary>
+  <form method="post" class="stack">
+    <input name="title" value="{{ e.title }}" required aria-label="Title">
+    <textarea name="body" rows="8" required aria-label="Entry">{{ e.body }}</textarea>
+    <button>Save edit</button>
+  </form>
+</details>
+{% endif %}
+{% if hist %}
+<h2>Earlier versions</h2>
+{% for h in hist %}
+<section class="aar old">
+  <h3>{{ h.title }}</h3>
+  <p><small>written by {{ h.written_by }} {{ h.written_at }} · replaced {{ h.replaced_at }}</small></p>
+  <div class="body">{{ h.body }}</div>
+</section>
+{% endfor %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% block title %}{{ folder.name }}{% endblock %}
+{% block body %}
+<p class="crumbs"><a href="/">Folders</a> /</p>
+<div class="row">
+  <h1>{{ folder.name }}</h1>
+  {% if can_edit(folder.id) %}<a class="button" href="{{ url_for('edit', fid=folder.id) }}">New page</a>{% endif %}
+</div>
+<ul class="list">
+  {% for p in pages %}
+  <li><a href="{{ url_for('page', pid=p.id) }}">{{ p.title }}</a> <small>{{ p.updated_by }} · {{ p.updated_at }}</small></li>
+  {% else %}
+  <li class="empty">No pages yet.</li>
+  {% endfor %}
+</ul>
+<p><small>Can edit: admins{% for e in editors %}, {{ e|replace('batch:', 'batch ') }}{% endfor %}</small></p>
+{% endblock %}

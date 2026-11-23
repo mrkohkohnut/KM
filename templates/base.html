@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Home{% endblock %} · KM</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header>
+  <a class="brand" href="/">KM</a>
+  {% if g.user %}
+  <form class="search" action="/search"><input name="q" placeholder="Search pages and AARs" value="{{ request.args.q or '' }}" aria-label="Search"></form>
+  <nav>
+    <a href="/aar">AAR</a>
+    {% if is_admin() %}<a href="/admin">Admin</a>{% endif %}
+    <a class="me" href="/who" title="Switch user">{{ g.user.name }}{% if is_admin() %} (admin){% endif %} · switch</a>
+  </nav>
+  {% endif %}
+</header>
+<main>
+  {% for m in get_flashed_messages() %}<p class="flash">{{ m }}</p>{% endfor %}
+  {% block body %}{% endblock %}
+</main>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>
