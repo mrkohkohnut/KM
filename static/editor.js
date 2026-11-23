@@ -43,7 +43,8 @@ async function toDataUrl(src) {
 // Opens draw.io full screen with `xml` (a diagram PNG as a data URL, .drawio XML, or '' for a new one).
 // Resolves with the uploaded PNG's URL (the PNG keeps the editable diagram inside it), or null if closed unsaved.
 // silent: load `xml` in a hidden draw.io and save it straight away (importing a .drawio file without any clicks).
-function drawio(xml, folderId, silent = false) {
+// mode 'xml': visible, but resolves with the saved .drawio XML (all sheets) instead of a picture.
+function drawio(xml, folderId, silent = false, mode = 'png') {
   return new Promise(resolve => {
     const frame = document.createElement('iframe');
     frame.className = silent ? 'drawio-frame silent' : 'drawio-frame';
@@ -57,6 +58,7 @@ function drawio(xml, folderId, silent = false) {
       let m; try { m = JSON.parse(e.data); } catch { return; }
       if (m.event === 'init') send({action: 'load', autosave: 0, xml});
       else if (m.event === 'load' && silent) send({action: 'export', format: 'xmlpng'});
+      else if (m.event === 'save' && mode === 'xml') done(m.xml);
       else if (m.event === 'save') send({action: 'export', format: 'xmlpng', spinKey: 'saving'});
       else if (m.event === 'export') {
         try { done((await upload(dataUrlToFile(m.data, 'diagram.png'), folderId)).url); }
@@ -299,25 +301,51 @@ function readDiagramFile(file) {  // .drawio/.xml as text; a .png exported from 
   });
 }
 
+// A .drawio file holds one or more sheets (pages). Each sheet is drawn to its own picture, so the folder page can
+// show them as tabs; the whole file is kept next to them (data-source) so editing opens every sheet.
+function sheetsOf(xml) {
+  const file = new DOMParser().parseFromString(xml, 'text/xml').documentElement;
+  if (file.nodeName !== 'mxfile') return [{name: '', xml}];
+  return [...file.getElementsByTagName('diagram')].map((d, i) => {
+    const one = file.cloneNode(false);
+    one.appendChild(d.cloneNode(true));
+    return {name: d.getAttribute('name') || `Page-${i + 1}`, xml: new XMLSerializer().serializeToString(one)};
+  });
+}
+
+async function sheetsHtml(xml, folderId) {
+  const sheets = xml.startsWith('data:') ? [{name: '', xml}] : sheetsOf(xml);  // a .png from draw.io: one picture
+  const pictures = [];
+  for (const sheet of sheets) {
+    const url = await drawio(sheet.xml, folderId, true);
+    if (!url) return null;
+    pictures.push({name: sheet.name, url});
+  }
+  const source = xml.startsWith('data:') ? null
+    : (await upload(new File([xml], 'network.drawio', {type: 'application/xml'}), folderId)).url;
+  return `<div class="drawio-sheets"${source ? ` data-source="${esc(source)}"` : ''}>` + pictures.map(p =>
+    `<figure data-sheet="${esc(p.name)}"><img data-drawio="1" src="${esc(p.url)}" alt="${esc(p.name || 'Network diagram')}"></figure>`
+  ).join('') + '</div>';
+}
+
 function diagramSection(section) {
   const body = section.querySelector('.ov-body');
   const add = section.querySelector('.pen');
   const picker = section.querySelector('input[type=file]');
   const folder = section.dataset.folder;
 
-  async function show(url) {
+  async function importXml(xml) {  // draw every sheet, then save them all into the section
+    body.classList.add('busy');
+    const html = await sheetsHtml(xml, folder);
+    body.classList.remove('busy');
+    if (!html) return;
     const fd = new FormData();
-    fd.append('html', `<p><img data-drawio="1" src="${esc(url)}" alt="Network diagram"></p>`);
+    fd.append('html', html);
     const r = await fetch(section.dataset.save, {method: 'POST', body: fd});
     if (!r.ok) return alert(r.status === 403 ? 'You no longer have edit rights for this folder.' : 'Saving failed (' + r.status + ').');
     body.innerHTML = (await r.json()).html;
     section.dataset.empty = '';
-  }
-  async function importXml(xml) {
-    body.classList.add('busy');
-    const url = await drawio(xml, folder, true);
-    body.classList.remove('busy');
-    if (url) await show(url);
+    body.querySelectorAll('.drawio-sheets').forEach(setupSheets);
   }
   async function importFile(file) {
     if (!DIAGRAM_FILE.test(file.name)) return alert('Choose a draw.io file (.drawio).');
@@ -344,9 +372,12 @@ function diagramSection(section) {
   body.addEventListener('click', async e => {
     const img = e.target.closest('img[data-drawio]');
     const use = e.target.closest('[data-use]');
-    if (img) { const url = await drawio(await toDataUrl(img.getAttribute('src')), folder); if (url) await show(url); }
-    else if (use) importXml(await (await fetch(use.dataset.use)).text());
-    else if (e.target.closest('[data-new]')) { const url = await drawio('', folder); if (url) await show(url); }
+    if (img) {  // edit: open the whole file (every sheet), or the picture for diagrams saved before sheets existed
+      const source = img.closest('.drawio-sheets')?.dataset.source;
+      const xml = await drawio(source ? await (await fetch(source)).text() : await toDataUrl(img.getAttribute('src')), folder, false, 'xml');
+      if (xml) await importXml(xml);
+    } else if (use) importXml(await (await fetch(use.dataset.use)).text());
+    else if (e.target.closest('[data-new]')) { const xml = await drawio('', folder, false, 'xml'); if (xml) await importXml(xml); }
   });
   body.addEventListener('dragover', e => {
     if (!section.dataset.empty || !e.dataTransfer.types.includes('Files')) return;

@@ -107,7 +107,15 @@ def overview_sections(html):
 
 
 def diagram_only(html):
-    """Just the draw.io diagrams (PNG with the diagram inside) from some HTML."""
+    """Just the draw.io diagram from some HTML: a sheets box (one picture per sheet plus the .drawio file),
+    rebuilt from its parts so nothing else gets through, or older single diagram pictures."""
+    box = re.search(r'<div class="drawio-sheets"(?: data-source="([^"<>]*)")?>(.*?)</div>', html, re.S)
+    if box:
+        sheets = re.findall(r'<figure data-sheet="([^"<>]*)"><img\b[^>]*?\bsrc="([^"<>]+)"', box.group(2))
+        source = f' data-source="{box.group(1)}"' if box.group(1) else ""
+        return f'<div class="drawio-sheets"{source}>' + "".join(
+            f'<figure data-sheet="{name}"><img data-drawio="1" src="{src}" alt="{name or "Network diagram"}"></figure>'
+            for name, src in sheets) + "</div>" if sheets else ""
     return "".join(f"<p>{img}</p>" for img in re.findall(r"<img\b[^>]*data-drawio[^>]*>", html))
 
 

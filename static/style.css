@@ -334,3 +334,10 @@ h1.large + .card { margin-top: 18px; }
 .ov-body.editable img[data-drawio] { cursor: pointer; transition: box-shadow .15s; }
 .ov-body.editable img[data-drawio]:hover { box-shadow: 0 0 0 3px var(--accent-soft); }
 .ov-body.busy { opacity: .5; pointer-events: none; }
+/* draw.io sheets as tabs */
+.sheet-tabs { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 2px; margin: 8px 0 6px; border-radius: 9px; background: var(--fill); }
+.sheet-tabs button { padding: 4px 14px; border-radius: 7px; background: none; color: var(--text); font-size: 13px; font-weight: 500; }
+.sheet-tabs button:hover { filter: none; background: rgba(255,255,255,.5); }
+.sheet-tabs button[aria-selected="true"] { background: var(--card); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+.drawio-sheets figure { margin: 6px 0; }
+.drawio-sheets img { display: block; max-width: 100%; border-radius: 10px; }

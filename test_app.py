@@ -81,6 +81,13 @@ post(f"/folder/{sec}/section/background", html="<p>Game studio</p>")
 saved = km.overview_sections(sqlite3.connect(km.DB_PATH).execute(
     "SELECT html FROM pages WHERE folder_id=? AND is_readme=1", (sec,)).fetchone()[0])
 assert saved["people"] == "<ul><li>0521nic</li></ul>" and saved["background"] == "<p>Game studio</p>" and saved["diagram"] == ""
+# a diagram with several sheets is kept as one picture per sheet plus the .drawio file; anything else is dropped
+sheets = ('<p>junk</p><div class="drawio-sheets" data-source="/uploads/n.drawio"><figure data-sheet="Full"><img data-drawio="1" src="/uploads/a.png" alt="Full"></figure>'
+          '<figure data-sheet="SIP"><img data-drawio="1" src="/uploads/b.png" onerror="x()" alt="SIP"></figure><script>x()</script></div>')
+assert post(f"/folder/{sec}/section/diagram", html=sheets).get_json()["html"] == (
+    '<div class="drawio-sheets" data-source="/uploads/n.drawio"><figure data-sheet="Full"><img data-drawio="1" src="/uploads/a.png" alt="Full"></figure>'
+    '<figure data-sheet="SIP"><img data-drawio="1" src="/uploads/b.png" alt="SIP"></figure></div>')
+assert b'data-sheet="SIP"' in c.get(f"/folder/{sec}").data
 # the Network diagram section only ever holds draw.io diagrams: text sent to it is dropped
 assert post(f"/folder/{sec}/section/diagram", html='<p>notes</p><p><img data-drawio="1" src="/uploads/d.png" alt="x"></p>').get_json() == \
     {"html": '<p><img data-drawio="1" src="/uploads/d.png" alt="x"></p>'}

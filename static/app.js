@@ -26,3 +26,27 @@ document.getElementById('add-point')?.addEventListener('click', () => {
   list.append(copy);
   copy.querySelector('textarea').focus();
 });
+
+// draw.io diagrams with several sheets: show one sheet at a time with a tab for each.
+function setupSheets(box) {
+  const sheets = [...box.querySelectorAll(':scope > figure')];
+  if (sheets.length < 2 || box.querySelector('.sheet-tabs')) return;
+  const tabs = document.createElement('div');
+  tabs.className = 'sheet-tabs';
+  tabs.setAttribute('role', 'tablist');
+  const select = i => sheets.forEach((s, j) => {
+    s.hidden = i !== j;
+    tabs.children[j].setAttribute('aria-selected', String(i === j));
+  });
+  sheets.forEach((s, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('role', 'tab');
+    b.textContent = s.dataset.sheet || `Page ${i + 1}`;
+    b.addEventListener('click', () => select(i));
+    tabs.append(b);
+  });
+  box.prepend(tabs);
+  select(0);
+}
+document.querySelectorAll('.drawio-sheets').forEach(setupSheets);
