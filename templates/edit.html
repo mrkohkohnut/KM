@@ -1,14 +1,14 @@
-{% extends "base.html" %}{% block title %}{{ 'Edit ' ~ page.title if page else 'New page' }}{% endblock %}
+{% extends "base.html" %}{% block title %}{{ 'Editing ' ~ page.title if page else 'New page' }}{% endblock %}{% block layout %}wide{% endblock %}
 {% block body %}
 <form method="post" class="editor-form">
-  <div class="row">
-    <input name="title" class="title" placeholder="Page title" value="{{ page.title if page else '' }}" required aria-label="Page title">
-    <div class="actions">
-      <button>Save</button>
+  <div class="headrow">
+    <input name="title" class="titlefield" placeholder="Page title" value="{{ page.title if page else '' }}" required aria-label="Page title" {% if not page %}autofocus{% endif %}>
+    <div class="inline">
       <a class="button secondary" href="{{ url_for('page', pid=page.id) if page else url_for('folder', fid=folder_id) }}">Cancel</a>
+      <button>Save page</button>
     </div>
   </div>
-  <p><small>Drag files or images into the page to upload them. Use <b>Diagram</b> in the toolbar for draw.io, and double-click a diagram to edit it.</small></p>
+  <p class="hint">Drop files or images into the page to upload them. <b>Diagram</b> in the toolbar opens draw.io; double-click a diagram to change it.</p>
   <textarea id="editor" name="html" data-folder="{{ folder_id }}">{{ page.html if page else '' }}</textarea>
 </form>
 {% endblock %}

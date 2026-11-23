@@ -1,25 +1,43 @@
-{% extends "base.html" %}
+{% extends "base.html" %}{% block layout %}duo{% endblock %}
 {% block body %}
-<h1>Folders</h1>
-<ul class="cards">
-  {% for f in folders %}
-  <li><a href="{{ url_for('folder', fid=f.id) }}"><strong>{{ f.name }}</strong><span>{{ f.n }} page{{ '' if f.n == 1 else 's' }}</span></a></li>
+<div class="center">
+  <div class="headrow">
+    <h1>Folders</h1>
+    {% if is_admin() %}
+    <form method="post" action="/folders" class="inline">
+      <input name="name" placeholder="New folder name" required aria-label="New folder name"><button>Add folder</button>
+    </form>
+    {% endif %}
+  </div>
+  {% if folders %}
+  <ul class="binders">
+    {% for f in folders %}
+    <li style="--spine: {{ spine(f.id) }}">
+      <a href="{{ url_for('folder', fid=f.id) }}">
+        <strong>{{ f.name }}</strong>
+        <span>{{ f.n }} page{{ '' if f.n == 1 else 's' }}</span>
+        {% if f.last %}<small>Updated {{ f.last|when }} by {{ f.last_by }}</small>{% else %}<small>No pages yet</small>{% endif %}
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
   {% else %}
-  <li class="empty">No folders yet.{% if is_admin() %} Create one below.{% endif %}</li>
-  {% endfor %}
-  <li><a href="/aar" class="aar-card"><strong>AAR</strong><span>After action reviews</span></a></li>
-</ul>
-{% if is_admin() %}
-<form method="post" action="/folders" class="inline">
-  <input name="name" placeholder="New folder name" required aria-label="New folder name"><button>Add folder</button>
-</form>
-{% endif %}
-{% if recent %}
-<h2>Recently updated</h2>
-<ul class="list">
-  {% for p in recent %}
-  <li><a href="{{ url_for('page', pid=p.id) }}">{{ p.title }}</a> <small>{{ p.folder }} · {{ p.updated_by }} · {{ p.updated_at }}</small></li>
-  {% endfor %}
-</ul>
-{% endif %}
+  <p class="empty">{% if is_admin() %}Add the first folder above, then give a batch edit rights to it in Admin.{% else %}There are no folders yet. An admin needs to create one.{% endif %}</p>
+  {% endif %}
+</div>
+<aside class="right">
+  <section>
+    <h2>Latest AAR</h2>
+    {% for e in aars %}
+    <a class="mini" href="{{ url_for('aar_entry', eid=e.id) }}"><strong>{{ e.title }}</strong><small>{{ e.author }}, {{ e.created_at|when }}</small></a>
+    {% else %}<p class="empty">No entries yet.</p>{% endfor %}
+    <a class="more" href="/aar">Open the AAR log</a>
+  </section>
+  <section>
+    <h2>Recently updated</h2>
+    {% for p in recent %}
+    <a class="mini" href="{{ url_for('page', pid=p.id) }}"><strong>{{ p.title }}</strong><small>{{ p.folder }}, by {{ p.updated_by }}</small></a>
+    {% else %}<p class="empty">Nothing yet.</p>{% endfor %}
+  </section>
+</aside>
 {% endblock %}

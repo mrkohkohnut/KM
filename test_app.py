@@ -23,6 +23,8 @@ post("/folders", name="Module 1"); post("/folders", name="Module 2")
 post("/admin/perm", folder_id="1", subject="batch:0521")  # whole batch edits Module 1
 post("/admin/perm", folder_id="2", subject="0521sam")      # only sam edits Module 2
 
+assert b"0521nic" in c.get("/who").data  # name list renders with admins + batches
+
 # trainee: no PIN needed
 assert post("/who", name="0521nic").status_code == 302
 assert c.get("/admin").status_code == 403

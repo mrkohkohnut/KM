@@ -1,16 +1,36 @@
-{% extends "base.html" %}{% block title %}{{ folder.name }}{% endblock %}
+{% extends "base.html" %}{% block title %}{{ folder.name }}{% endblock %}{% block layout %}tri{% endblock %}
+{% block crumbs %}{% with items = [(folder.name, None)] %}{% include "_crumbs.html" %}{% endwith %}{% endblock %}
 {% block body %}
-<p class="crumbs"><a href="/">Folders</a> /</p>
-<div class="row">
-  <h1>{{ folder.name }}</h1>
-  {% if can_edit(folder.id) %}<a class="button" href="{{ url_for('edit', fid=folder.id) }}">New page</a>{% endif %}
+<aside class="left" style="--spine: {{ spine(folder.id) }}">
+  <section class="folderhead"><strong>{{ folder.name }}</strong><small>{{ pages|length }} page{{ '' if pages|length == 1 else 's' }}</small></section>
+  <section>
+    <h2>Who can edit</h2>
+    <ul class="plain">
+      <li>Admins</li>
+      {% for e in editors %}<li>{{ e|replace('batch:', 'Batch ') }}</li>{% endfor %}
+    </ul>
+    {% if is_admin() %}<a class="more" href="/admin#perms">Change edit rights</a>{% endif %}
+  </section>
+</aside>
+<div class="center">
+  <div class="sheet">
+    <h1>{{ folder.name }}</h1>
+    {% for p in pages %}
+    <a class="pagerow" href="{{ url_for('page', pid=p.id) }}">
+      <strong>{{ p.title }}</strong>
+      {% if p.excerpt %}<span>{{ p.excerpt }}{% if p.excerpt|length == 200 %}…{% endif %}</span>{% endif %}
+      <small>Updated {{ p.updated_at|when }} by {{ p.updated_by }}</small>
+    </a>
+    {% else %}
+    <p class="empty">{% if can_edit(folder.id) %}This folder is empty. Start with <a href="{{ url_for('edit', fid=folder.id) }}">a new page</a>.{% else %}This folder is empty.{% endif %}</p>
+    {% endfor %}
+  </div>
 </div>
-<ul class="list">
-  {% for p in pages %}
-  <li><a href="{{ url_for('page', pid=p.id) }}">{{ p.title }}</a> <small>{{ p.updated_by }} · {{ p.updated_at }}</small></li>
-  {% else %}
-  <li class="empty">No pages yet.</li>
-  {% endfor %}
-</ul>
-<p><small>Can edit: admins{% for e in editors %}, {{ e|replace('batch:', 'batch ') }}{% endfor %}</small></p>
+<aside class="right">
+  <section>
+    <h2>Actions</h2>
+    {% if can_edit(folder.id) %}<a class="action" href="{{ url_for('edit', fid=folder.id) }}">New page</a>
+    {% else %}<p class="empty">You can read this folder. Ask an admin for edit rights.</p>{% endif %}
+  </section>
+</aside>
 {% endblock %}

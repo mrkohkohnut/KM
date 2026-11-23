@@ -1,19 +1,17 @@
 {% extends "base.html" %}{% block title %}Search{% endblock %}
 {% block body %}
-<h1>Search{% if q %}: “{{ q }}”{% endif %}</h1>
-{% if q %}
-<h2>Pages</h2>
-<ul class="list">
+<div class="sheet">
+  <h1>{% if q %}Results for “{{ q }}”{% else %}Search{% endif %}</h1>
+  {% if q %}
+  <h2 class="sub">Pages</h2>
   {% for p in pages %}
-  <li><a href="{{ url_for('page', pid=p.id) }}">{{ p.title }}</a> <small>{{ p.folder }}</small>
-    <div class="snip">{{ p.snip|e|replace('[[', '<mark>'|safe)|replace(']]', '</mark>'|safe) }}</div></li>
-  {% else %}<li class="empty">No pages match.</li>{% endfor %}
-</ul>
-<h2>AAR</h2>
-<ul class="list">
+  <a class="pagerow" href="{{ url_for('page', pid=p.id) }}"><strong>{{ p.title }}</strong>
+    <span>{{ p.snip|e|replace('[[', '<mark>'|safe)|replace(']]', '</mark>'|safe) }}</span><small>In {{ p.folder }}</small></a>
+  {% else %}<p class="empty">No pages contain “{{ q }}”.</p>{% endfor %}
+  <h2 class="sub">AAR entries</h2>
   {% for e in aars %}
-  <li><a href="{{ url_for('aar_entry', eid=e.id) }}">{{ e.title }}</a> <small>{{ e.author }} · {{ e.created_at }}</small></li>
-  {% else %}<li class="empty">No AAR entries match.</li>{% endfor %}
-</ul>
-{% endif %}
+  <a class="pagerow" href="{{ url_for('aar_entry', eid=e.id) }}"><strong>{{ e.title }}</strong><small>{{ e.author }}, {{ e.created_at|when }}</small></a>
+  {% else %}<p class="empty">No AAR entries contain “{{ q }}”.</p>{% endfor %}
+  {% else %}<p>Type in the search box at the top.</p>{% endif %}
+</div>
 {% endblock %}

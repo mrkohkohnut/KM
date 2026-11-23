@@ -1,18 +1,21 @@
-{% extends "base.html" %}{% block title %}Who are you?{% endblock %}
+{% extends "base.html" %}{% block title %}Who's using this PC?{% endblock %}{% block layout %}narrow{% endblock %}
 {% block body %}
-<h1>Who are you?</h1>
-<form method="post" class="stack narrow">
-  <label>Your name
-    <select name="name" required autofocus>
-      <option value="">Choose…</option>
-      {% for b, group in users|groupby('batch_id') %}
-      <optgroup label="{{ 'Batch ' ~ b if b else 'Admins' }}">
-        {% for u in group %}<option value="{{ u.name }}" {% if g.user and g.user.name == u.name %}selected{% endif %}>{{ u.name }}</option>{% endfor %}
-      </optgroup>
-      {% endfor %}
-    </select>
-  </label>
-  <label>PIN <small>(admins only)</small> <input name="pin" type="password" autocomplete="off"></label>
-  <button>Continue</button>
-</form>
+<div class="sheet">
+  <h1>Who's using this PC?</h1>
+  <p>Your name goes on everything you write. Admins also enter their PIN.</p>
+  <form method="post" class="stack">
+    <label>Name
+      <select name="name" required autofocus>
+        <option value="">Choose your name</option>
+        {% for b, group in groups %}
+        <optgroup label="{{ 'Batch ' ~ b if b else 'Admins' }}">
+          {% for u in group %}<option value="{{ u.name }}" {% if g.user and g.user.name == u.name %}selected{% endif %}>{{ u.name }}</option>{% endfor %}
+        </optgroup>
+        {% endfor %}
+      </select>
+    </label>
+    <label>PIN <small>Admins only</small><input name="pin" type="password" autocomplete="off"></label>
+    <button>Continue</button>
+  </form>
+</div>
 {% endblock %}

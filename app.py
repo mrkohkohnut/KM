@@ -11,6 +11,7 @@ import sqlite3
 import sys
 import time
 import uuid
+from itertools import groupby
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -136,8 +137,9 @@ def load_user():
 def security_headers(resp):
     resp.headers["Content-Security-Policy"] = (
         "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; "
-        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob:; "
-        "font-src 'self' data: https://cdn.jsdelivr.net; frame-src https://embed.diagrams.net; "
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
+        "img-src 'self' data: blob:; font-src 'self' data: https://cdn.jsdelivr.net https://fonts.gstatic.com; "
+        " frame-src https://embed.diagrams.net; "
         "connect-src 'self' https://cdn.jsdelivr.net")
     resp.headers["X-Content-Type-Options"] = "nosniff"
     return resp
@@ -165,7 +167,17 @@ def require_admin():
         abort(403, "Admins only.")
 
 
-app.jinja_env.globals.update(can_edit=can_edit, is_admin=is_admin)
+SPINES = ["#5b6b2f", "#a0522d", "#44607a", "#b08d3c", "#6d4c6b", "#2e6b66"]  # folder binder colours
+
+
+def when(s):
+    """'2026-11-23 14:02' -> '23 Nov 2026, 14:02'"""
+    return datetime.strptime(s, "%Y-%m-%d %H:%M").strftime("%d %b %Y, %H:%M").lstrip("0") if s else ""
+
+
+app.jinja_env.globals.update(can_edit=can_edit, is_admin=is_admin,
+                             spine=lambda fid: SPINES[(fid - 1) % len(SPINES)])
+app.jinja_env.filters["when"] = when
 
 
 @app.route("/setup", methods=["GET", "POST"])
@@ -199,21 +211,23 @@ def who():
             session.permanent = not u["is_admin"]  # trainees stay remembered; admins don't
             nxt = request.args.get("next", "/")
             return redirect(nxt if nxt.startswith("/") and not nxt.startswith("//") else "/")
-    users = db().execute(
-        "SELECT * FROM users ORDER BY is_admin DESC, batch_id DESC, name").fetchall()
-    return render_template("who.html", users=users)
+    users = db().execute("SELECT * FROM users ORDER BY is_admin DESC, batch_id DESC, name").fetchall()
+    groups = [(b, list(us)) for b, us in groupby(users, key=lambda u: u["batch_id"])]  # admins, then newest batch
+    return render_template("who.html", groups=groups)
 
 
 # ---------- folders & pages ----------
 
 @app.route("/")
 def home():
-    folders = db().execute("""SELECT f.*, COUNT(p.id) AS n FROM folders f
-                              LEFT JOIN pages p ON p.folder_id=f.id GROUP BY f.id ORDER BY f.name""").fetchall()
+    folders = db().execute("""SELECT f.*, COUNT(p.id) AS n, MAX(p.updated_at) AS last,
+                              (SELECT updated_by FROM pages WHERE folder_id=f.id ORDER BY updated_at DESC LIMIT 1) AS last_by
+                              FROM folders f LEFT JOIN pages p ON p.folder_id=f.id GROUP BY f.id ORDER BY f.name""").fetchall()
     recent = db().execute("""SELECT p.id, p.title, p.updated_by, p.updated_at, f.name AS folder
                              FROM pages p JOIN folders f ON f.id=p.folder_id
-                             ORDER BY p.updated_at DESC LIMIT 10""").fetchall()
-    return render_template("home.html", folders=folders, recent=recent)
+                             ORDER BY p.updated_at DESC LIMIT 8""").fetchall()
+    aars = db().execute("SELECT * FROM aar_entries ORDER BY id DESC LIMIT 4").fetchall()
+    return render_template("home.html", folders=folders, recent=recent, aars=aars)
 
 
 @app.post("/folders")
@@ -239,7 +253,8 @@ def get_or_404(sql, *args):
 @app.route("/folder/<int:fid>")
 def folder(fid):
     f = get_or_404("SELECT * FROM folders WHERE id=?", fid)
-    pages = db().execute("SELECT * FROM pages WHERE folder_id=? ORDER BY title", (fid,)).fetchall()
+    pages = [dict(p, excerpt=to_text(p["html"]).strip()[:200]) for p in
+             db().execute("SELECT * FROM pages WHERE folder_id=? ORDER BY title", (fid,))]
     editors = [r["subject"] for r in db().execute(
         "SELECT subject FROM perms WHERE folder_id=? ORDER BY subject", (fid,))]
     return render_template("folder.html", folder=f, pages=pages, editors=editors)
@@ -248,7 +263,14 @@ def folder(fid):
 @app.route("/page/<int:pid>")
 def page(pid):
     p = get_or_404("SELECT p.*, f.name AS folder FROM pages p JOIN folders f ON f.id=p.folder_id WHERE p.id=?", pid)
-    return render_template("page.html", page=p, rev=None)
+    return render_page(p, None)
+
+
+def render_page(p, rev):
+    siblings = db().execute("SELECT id, title FROM pages WHERE folder_id=? ORDER BY title", (p["folder_id"],)).fetchall()
+    created = db().execute("SELECT saved_by, saved_at FROM revisions WHERE page_id=? ORDER BY id LIMIT 1",
+                           (p["id"],)).fetchone()
+    return render_template("page.html", page=p, rev=rev, siblings=siblings, created=created)
 
 
 def to_text(html):
@@ -308,7 +330,7 @@ def revision(rid):
     r = get_or_404("SELECT * FROM revisions WHERE id=?", rid)
     p = get_or_404("SELECT p.*, f.name AS folder FROM pages p JOIN folders f ON f.id=p.folder_id WHERE p.id=?",
                    r["page_id"])
-    return render_template("page.html", page=p, rev=r)
+    return render_page(p, r)
 
 
 @app.post("/revision/<int:rid>/restore")

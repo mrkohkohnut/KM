@@ -1,29 +1,36 @@
-{% extends "base.html" %}{% block title %}AAR · {{ e.title }}{% endblock %}
+{% extends "base.html" %}{% block title %}{{ e.title }}{% endblock %}{% block layout %}duo{% endblock %}
+{% block crumbs %}<nav class="crumbs" aria-label="Breadcrumb"><a href="/aar">AAR log</a><span aria-hidden="true">/</span><span>{{ e.title }}</span></nav>{% endblock %}
 {% block body %}
-<p class="crumbs"><a href="/aar">← AAR</a></p>
-<section class="aar">
-  <h1>{{ e.title }}</h1>
-  <p><small>{{ e.author }} · {{ e.created_at }}{% if e.edited_by %} · edited by {{ e.edited_by }} {{ e.edited_at }}{% endif %}</small></p>
-  <div class="body">{{ e.body }}</div>
-</section>
-{% if is_admin() %}
-<details>
-  <summary>Edit (admin)</summary>
-  <form method="post" class="stack">
-    <input name="title" value="{{ e.title }}" required aria-label="Title">
-    <textarea name="body" rows="8" required aria-label="Entry">{{ e.body }}</textarea>
-    <button>Save edit</button>
-  </form>
-</details>
-{% endif %}
-{% if hist %}
-<h2>Earlier versions</h2>
-{% for h in hist %}
-<section class="aar old">
-  <h3>{{ h.title }}</h3>
-  <p><small>written by {{ h.written_by }} {{ h.written_at }} · replaced {{ h.replaced_at }}</small></p>
-  <div class="body">{{ h.body }}</div>
-</section>
-{% endfor %}
-{% endif %}
+<div class="center">
+  <article class="sheet">
+    <h1>{{ e.title }}</h1>
+    <p><small>Written by {{ e.author }} on {{ e.created_at|when }}{% if e.edited_by %}. Corrected by {{ e.edited_by }} on {{ e.edited_at|when }}{% endif %}.</small></p>
+    <p class="body">{{ e.body }}</p>
+  </article>
+  {% if hist %}
+  <h2 class="sub">Earlier wording</h2>
+  <ol class="log">
+    {% for h in hist %}
+    <li class="old">
+      <time>{{ h.written_at|when }}</time>
+      <div><strong>{{ h.title }}</strong> <small>by {{ h.written_by }}, replaced {{ h.replaced_at|when }}</small><p class="body">{{ h.body }}</p></div>
+    </li>
+    {% endfor %}
+  </ol>
+  {% endif %}
+</div>
+<aside class="right">
+  {% if is_admin() %}
+  <section>
+    <h2>Correct this entry</h2>
+    <form method="post" class="stack">
+      <label>Title <input name="title" value="{{ e.title }}" required></label>
+      <label>Entry <textarea name="body" rows="10" required>{{ e.body }}</textarea></label>
+      <button>Save correction</button>
+    </form>
+  </section>
+  {% else %}
+  <section><h2>About AAR entries</h2><p class="empty">Entries can't be deleted. Only admins can correct them.</p></section>
+  {% endif %}
+</aside>
 {% endblock %}

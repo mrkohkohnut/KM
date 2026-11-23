@@ -1,3 +1,4 @@
+const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
 const folderId = document.getElementById('editor').dataset.folder;
 const DRAWIO = 'https://embed.diagrams.net/?embed=1&proto=json&spin=1&noSaveBtn=1&saveAndExit=1';
 const esc = s => s.replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
@@ -56,15 +57,17 @@ function openDrawio(ed, img) {
 tinymce.init({
   selector: '#editor',
   license_key: 'gpl',
-  height: '70vh',
+  height: 'calc(100vh - 210px)',
+  min_height: 400,
   menubar: false, promotion: false, branding: false,
   plugins: 'lists link image table code autolink',
   toolbar: 'undo redo | blocks | bold italic underline | bullist numlist | link image table | drawio | code',
   relative_urls: false, convert_urls: false,
   images_upload_handler: async blobInfo => (await upload(new File([blobInfo.blob()], blobInfo.filename()))).url,
-  content_style: 'img{max-width:100%;height:auto} img[data-drawio]{cursor:pointer}',
-  skin: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'oxide-dark' : 'oxide',
-  content_css: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default',
+  content_style: 'body{font:17px/1.7 "IBM Plex Serif",Georgia,serif;max-width:72ch;margin:24px auto;padding:0 24px}'
+    + 'h1,h2,h3,h4{font-family:"IBM Plex Sans","Segoe UI",sans-serif} img{max-width:100%;height:auto} img[data-drawio]{cursor:pointer}',
+  skin: dark ? 'oxide-dark' : 'oxide',
+  content_css: [dark ? 'dark' : 'default', 'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@600&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap'],
   setup(ed) {
     ed.ui.registry.addButton('drawio', {text: 'Diagram', tooltip: 'Insert draw.io diagram', onAction: () => openDrawio(ed, null)});
     ed.on('dblclick', e => { if (e.target.nodeName === 'IMG' && e.target.hasAttribute('data-drawio')) openDrawio(ed, e.target); });

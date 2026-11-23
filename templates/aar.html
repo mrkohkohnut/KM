@@ -1,17 +1,29 @@
-{% extends "base.html" %}{% block title %}AAR{% endblock %}
+{% extends "base.html" %}{% block title %}AAR log{% endblock %}{% block layout %}duo{% endblock %}
 {% block body %}
-<h1>After action reviews</h1>
-<p><small>Anyone can add an entry. Entries can never be deleted, and every admin edit is kept in the entry's history.</small></p>
-<form method="post" class="stack">
-  <input name="title" placeholder="Title, e.g. Exercise 3, 21 Nov" required aria-label="Title">
-  <textarea name="body" rows="6" placeholder="What happened, what went well, what to improve…" required aria-label="Entry"></textarea>
-  <button>Add entry as {{ g.user.name }}</button>
-</form>
-{% for e in entries %}
-<section class="aar">
-  <h2><a href="{{ url_for('aar_entry', eid=e.id) }}">{{ e.title }}</a></h2>
-  <p><small>{{ e.author }} · {{ e.created_at }}{% if e.edited_by %} · edited by {{ e.edited_by }} {{ e.edited_at }}{% endif %}</small></p>
-  <div class="body">{{ e.body }}</div>
-</section>
-{% endfor %}
+<div class="center">
+  <h1>AAR log</h1>
+  <p class="lede">Entries are never deleted. Admins can correct an entry, and the original wording stays in its history.</p>
+  <ol class="log aarlog">
+    {% for e in entries %}
+    <li>
+      <time>{{ e.created_at|when }}</time>
+      <div>
+        <h2><a href="{{ url_for('aar_entry', eid=e.id) }}">{{ e.title }}</a></h2>
+        <small>{{ e.author }}{% if e.edited_by %}, corrected by {{ e.edited_by }} on {{ e.edited_at|when }}{% endif %}</small>
+        <p class="body">{{ e.body }}</p>
+      </div>
+    </li>
+    {% else %}<li class="empty">No entries yet. Add the first one.</li>{% endfor %}
+  </ol>
+</div>
+<aside class="right sticky">
+  <section>
+    <h2>Add an entry</h2>
+    <form method="post" class="stack">
+      <label>Title <input name="title" placeholder="Exercise 3, 21 Nov" required></label>
+      <label>Entry <textarea name="body" rows="8" placeholder="What was planned, what happened, what to do differently" required></textarea></label>
+      <button>Add entry as {{ g.user.name }}</button>
+    </form>
+  </section>
+</aside>
 {% endblock %}

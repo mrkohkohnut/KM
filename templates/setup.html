@@ -1,10 +1,12 @@
-{% extends "base.html" %}{% block title %}First-time setup{% endblock %}
+{% extends "base.html" %}{% block title %}First-time setup{% endblock %}{% block layout %}narrow{% endblock %}
 {% block body %}
-<h1>First-time setup</h1>
-<p>Create the first admin. Admins need their PIN to switch into admin mode.</p>
-<form method="post" class="stack narrow">
-  <label>Admin name <input name="name" required autofocus></label>
-  <label>PIN (at least 4 characters) <input name="pin" type="password" minlength="4" required></label>
-  <button>Create admin</button>
-</form>
+<div class="sheet">
+  <h1>Set up KM</h1>
+  <p>Create the first admin. Admins enter this PIN when they switch into admin mode.</p>
+  <form method="post" class="stack">
+    <label>Admin name <input name="name" required autofocus></label>
+    <label>PIN <small>At least 4 characters</small><input name="pin" type="password" minlength="4" required></label>
+    <button>Create admin</button>
+  </form>
+</div>
 {% endblock %}

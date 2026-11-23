@@ -1,10 +1,16 @@
-{% extends "base.html" %}{% block title %}History · {{ page.title }}{% endblock %}
+{% extends "base.html" %}{% block title %}History of {{ page.title }}{% endblock %}
+{% block crumbs %}{% with items = [(page.title, url_for('page', pid=page.id)), ('History', None)] %}{% include "_crumbs.html" %}{% endwith %}{% endblock %}
 {% block body %}
-<p class="crumbs"><a href="{{ url_for('page', pid=page.id) }}">← {{ page.title }}</a></p>
-<h1>History</h1>
-<ul class="list">
-  {% for r in revs %}
-  <li><a href="{{ url_for('revision', rid=r.id) }}">{{ r.saved_at }}</a> <small>{{ r.saved_by }} · “{{ r.title }}”{% if loop.first %} · current{% endif %}</small></li>
-  {% endfor %}
-</ul>
+<div class="sheet">
+  <h1>History of {{ page.title }}</h1>
+  <p>Every save is kept. Open a version to read it or restore it.</p>
+  <ol class="log">
+    {% for r in revs %}
+    <li>
+      <time>{{ r.saved_at|when }}</time>
+      <div><a href="{{ url_for('revision', rid=r.id) }}">{{ r.title }}</a> <small>saved by {{ r.saved_by }}{% if loop.first %}, current version{% endif %}</small></div>
+    </li>
+    {% endfor %}
+  </ol>
+</div>
 {% endblock %}

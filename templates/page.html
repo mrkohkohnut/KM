@@ -1,26 +1,47 @@
-{% extends "base.html" %}{% block title %}{{ page.title }}{% endblock %}
+{% extends "base.html" %}{% block title %}{{ page.title }}{% endblock %}{% block layout %}tri{% endblock %}
+{% block crumbs %}{% with items = [(page.folder, url_for('folder', fid=page.folder_id)), (page.title, url_for('page', pid=page.id) if rev else None)] + ([('Old version', None)] if rev else []) %}{% include "_crumbs.html" %}{% endwith %}{% endblock %}
 {% block body %}
-<p class="crumbs"><a href="/">Folders</a> / <a href="{{ url_for('folder', fid=page.folder_id) }}">{{ page.folder }}</a> /</p>
-{% if rev %}
-<p class="flash">Old version saved by {{ rev.saved_by }} on {{ rev.saved_at }}.
-  <a href="{{ url_for('page', pid=page.id) }}">See current version</a></p>
-{% endif %}
-<div class="row">
-  <h1>{{ rev.title if rev else page.title }}</h1>
-  <div class="actions">
+<aside class="left" style="--spine: {{ spine(page.folder_id) }}">
+  <section class="folderhead"><a href="{{ url_for('folder', fid=page.folder_id) }}"><strong>{{ page.folder }}</strong></a></section>
+  <nav class="tree" aria-label="Pages in {{ page.folder }}">
+    {% for s in siblings %}<a href="{{ url_for('page', pid=s.id) }}" {% if s.id == page.id %}aria-current="page"{% endif %}>{{ s.title }}</a>{% endfor %}
+  </nav>
+</aside>
+<div class="center">
+  {% if rev %}
+  <div class="notice">You're looking at the version {{ rev.saved_by }} saved on {{ rev.saved_at|when }}. <a href="{{ url_for('page', pid=page.id) }}">Go to the current version</a></div>
+  {% endif %}
+  <article class="sheet content">
+    <h1 class="pagetitle">{{ rev.title if rev else page.title }}</h1>
+    {{ (rev.html if rev else page.html)|safe }}
+  </article>
+</div>
+<aside class="right">
+  <section>
+    <h2>Actions</h2>
     {% if rev %}
       {% if can_edit(page.folder_id) %}
-      <form method="post" action="{{ url_for('restore', rid=rev.id) }}" data-confirm="Restore this version? The current version stays in history."><button>Restore this version</button></form>
+      <form method="post" action="{{ url_for('restore', rid=rev.id) }}" data-confirm="Restore this version? The current version stays in history."><button class="action">Restore this version</button></form>
       {% endif %}
+      <a class="action" href="{{ url_for('history', pid=page.id) }}">Back to history</a>
     {% else %}
-      {% if can_edit(page.folder_id) %}<a class="button" href="{{ url_for('edit', pid=page.id) }}">Edit</a>{% endif %}
-      <a class="button secondary" href="{{ url_for('history', pid=page.id) }}">History</a>
+      {% if can_edit(page.folder_id) %}<a class="action" href="{{ url_for('edit', pid=page.id) }}">Edit</a>{% endif %}
+      <a class="action" href="{{ url_for('history', pid=page.id) }}">History</a>
       {% if is_admin() %}
-      <form method="post" action="{{ url_for('delete_page', pid=page.id) }}" data-confirm="Delete this page? Its history is kept in the database."><button class="danger">Delete</button></form>
+      <form method="post" action="{{ url_for('delete_page', pid=page.id) }}" data-confirm="Delete “{{ page.title }}”? Its history stays in the database."><button class="action danger">Delete</button></form>
       {% endif %}
     {% endif %}
-  </div>
-</div>
-{% if not rev %}<p><small>Last edited by {{ page.updated_by }} · {{ page.updated_at }}</small></p>{% endif %}
-<article class="content">{{ (rev.html if rev else page.html)|safe }}</article>
+  </section>
+  <section>
+    <h2>Details</h2>
+    <dl class="details">
+      {% if created %}<dt>Created</dt><dd>{{ created.saved_at|when }} by {{ created.saved_by }}</dd>{% endif %}
+      <dt>Last edited</dt><dd>{{ page.updated_at|when }} by {{ page.updated_by }}</dd>
+    </dl>
+  </section>
+  <section id="toc-box" hidden>
+    <h2>On this page</h2>
+    <nav id="toc" class="toc" aria-label="On this page"></nav>
+  </section>
+</aside>
 {% endblock %}
