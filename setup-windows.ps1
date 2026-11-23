@@ -10,11 +10,6 @@ if ($py -like '*WindowsApps*') { throw 'Install Python from python.org, not the 
 $pyw = Join-Path (Split-Path $py) 'pythonw.exe'   # runs without a console window
 & $py -m pip install --upgrade flask waitress
 
-# Let the other PCs on the local network reach port 8080
-if (-not (Get-NetFirewallRule -DisplayName 'KM (port 8080)' -ErrorAction SilentlyContinue)) {
-  New-NetFirewallRule -DisplayName 'KM (port 8080)' -Direction Inbound -Protocol TCP -LocalPort 8080 -RemoteAddress LocalSubnet -Action Allow | Out-Null
-}
-
 # Start KM at boot (before anyone logs in), restart it if it crashes
 $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1)
 Register-ScheduledTask -TaskName 'KM server' -Force -User SYSTEM -RunLevel Highest -Settings $settings `
