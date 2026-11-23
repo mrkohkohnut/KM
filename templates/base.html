@@ -1,3 +1,4 @@
+{% from "_icons.html" import icon %}
 <!doctype html>
 <html lang="en">
 <head>
@@ -6,28 +7,26 @@
 <title>{% block title %}Folders{% endblock %} – KM</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
 <header class="topbar">
-  <a class="brand" href="/" aria-label="KM home">
-    <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><rect x="3" y="2" width="16" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="3" y="2" width="5" height="18" rx="1.5" fill="currentColor"/></svg>
-    KM
-  </a>
+  <a class="brand" href="/" aria-label="KM home"><span class="brandmark" aria-hidden="true">{{ icon('folder') }}</span>KM</a>
   {% if g.user %}
-  <form class="search" action="/search" role="search">
-    <input name="q" type="search" placeholder="Search pages and AARs" value="{{ request.args.q or '' }}" aria-label="Search pages and AARs">
-  </form>
-  <nav class="mainnav">
-    {% set ep = request.endpoint %}
+  {% set ep = request.endpoint %}
+  <nav class="segmented" aria-label="Main">
     <a href="/" {% if ep in ('home', 'folder', 'page', 'edit', 'history', 'revision') %}aria-current="page"{% endif %}>Folders</a>
     <a href="/aar" {% if ep in ('aar', 'aar_entry') %}aria-current="page"{% endif %}>AAR</a>
     {% if is_admin() %}<a href="/admin" {% if ep == 'admin' %}aria-current="page"{% endif %}>Admin</a>{% endif %}
   </nav>
+  <form class="search" action="/search" role="search">
+    {{ icon('search') }}
+    <input name="q" type="search" placeholder="Search" value="{{ request.args.q or '' }}" aria-label="Search pages and AARs">
+  </form>
   <a class="user" href="/who" title="Switch user">
     <span class="avatar" aria-hidden="true">{{ (g.user.display_name or g.user.name)[:1]|upper }}</span>
-    <span>{{ g.user.name }}{% if is_admin() %} <em>admin</em>{% endif %}</span>
+    <span class="username">{{ g.user.name }}{% if is_admin() and g.user.name != 'admin' %} <em>Admin</em>{% endif %}</span>
   </a>
   {% endif %}
 </header>

@@ -1,28 +1,25 @@
 {% extends "base.html" %}{% block title %}AAR log{% endblock %}{% block layout %}duo{% endblock %}
 {% block body %}
 <div class="center">
-  <h1>AAR log</h1>
-  <p class="lede">Entries are never deleted. Admins can correct an entry, and the original wording stays in its history.</p>
-  <ol class="log aarlog">
-    {% for e in entries %}
-    <li>
-      <time>{{ e.created_at|when }}</time>
-      <div>
-        <h2><a href="{{ url_for('aar_entry', eid=e.id) }}">{{ e.title }}</a></h2>
-        <small>{{ e.author }}{% if e.edited_by %}, corrected by {{ e.edited_by }} on {{ e.edited_at|when }}{% endif %}</small>
-        <p class="body">{{ e.body }}</p>
-      </div>
-    </li>
-    {% else %}<li class="empty">No entries yet. Add the first one.</li>{% endfor %}
-  </ol>
+  <h1 class="large">AAR log</h1>
+  <p class="sub">Entries are never deleted. Admins can correct an entry, and the original wording stays in its history.</p>
+  {% for e in entries %}
+  <article class="card aar">
+    <time>{{ e.created_at|when }}</time>
+    <h2><a href="{{ url_for('aar_entry', eid=e.id) }}">{{ e.title }}</a></h2>
+    <p class="byline">{{ e.author }}{% if e.edited_by %}, corrected by {{ e.edited_by }} on {{ e.edited_at|when }}{% endif %}</p>
+    <p class="body">{{ e.body }}</p>
+  </article>
+  {% else %}<div class="empty-card"><p>No entries yet. Add the first one.</p></div>{% endfor %}
 </div>
 <aside class="right sticky">
-  <section>
-    <h2>Add an entry</h2>
+  <section class="card formcard">
+    <h2 class="cardtitle">New entry</h2>
     <form method="post" class="stack">
       <label>Title <input name="title" placeholder="Exercise 3, 21 Nov" required></label>
       <label>Entry <textarea name="body" rows="8" placeholder="What was planned, what happened, what to do differently" required></textarea></label>
-      <button>Add entry as {{ g.user.name }}</button>
+      <button>Add entry</button>
+      <small>Saved as {{ g.user.name }}. Entries can't be deleted.</small>
     </form>
   </section>
 </aside>

@@ -1,16 +1,16 @@
 {% extends "base.html" %}{% block title %}Admin{% endblock %}{% block layout %}duo{% endblock %}
 {% block body %}
 <div class="center">
-  <h1>Admin</h1>
-  <section class="sheet" id="perms">
-    <h2>Edit rights</h2>
-    <p>Everyone can read every folder. Admins can edit all of them. Give a whole batch or one person edit rights to a folder here.</p>
+  <h1 class="large">Admin</h1>
+  <section class="card" id="perms">
+    <h2 class="cardtitle">Edit rights</h2>
+    <p class="sub">Everyone can read every folder. Admins can edit all of them. Give a whole batch or one person edit rights to a folder here.</p>
     <table>
       <thead><tr><th scope="col">Folder</th><th scope="col">Can edit</th><th scope="col"><span class="sr">Give edit rights</span></th></tr></thead>
       <tbody>
       {% for f in folders %}
       <tr>
-        <td><span class="dot" style="--spine: {{ spine(f.id) }}"></span>{{ f.name }}</td>
+        <td><span class="dot" style="--tint: {{ spine(f.id) }}"></span>{{ f.name }}</td>
         <td>
           {% for s in perms.get(f.id, []) %}
           <form method="post" action="/admin/perm" class="chip">
@@ -27,38 +27,38 @@
               <optgroup label="Whole batch">{% for b in batches %}<option value="batch:{{ b.id }}">Batch {{ b.id }}</option>{% endfor %}</optgroup>
               <optgroup label="One person">{% for u in users %}<option>{{ u.name }}</option>{% endfor %}</optgroup>
             </select>
-            <button class="secondary">Give rights</button>
+            <button class="plain">Give rights</button>
           </form>
         </td>
       </tr>
-      {% else %}<tr><td colspan="3" class="empty">Add a folder on the Folders page first.</td></tr>{% endfor %}
+      {% else %}<tr><td colspan="3" class="note">Add a folder on the Folders page first.</td></tr>{% endfor %}
       </tbody>
     </table>
   </section>
-  <section class="sheet">
-    <h2>Batches</h2>
+  <section class="card">
+    <h2 class="cardtitle">Batches</h2>
     {% for b in batches %}
     <div class="batch"><strong>Batch {{ b.id }}</strong><small>Created {{ b.created_at|when }}</small><p>{{ b.members or 'No trainees yet' }}</p></div>
-    {% else %}<p class="empty">No batches yet. Create one on the right.</p>{% endfor %}
+    {% else %}<p class="note">No batches yet. Create one on the right.</p>{% endfor %}
   </section>
 </div>
 <aside class="right">
-  <section>
-    <h2>New batch</h2>
+  <section class="card formcard">
+    <h2 class="cardtitle">New batch</h2>
     <form method="post" action="/admin/batch" class="stack">
       <label>Batch number <input name="batch" placeholder="0521" required></label>
       <label>Trainee names <small>Separate with commas or new lines</small><textarea name="names" rows="5" placeholder="nic, sam, alex" required></textarea></label>
       <button>Create usernames</button>
     </form>
-    <p class="empty">Usernames are the batch number plus the name, e.g. 0521nic. Use the same batch number again to add late joiners.</p>
+    <p class="note">Usernames are the batch number plus the name, e.g. 0521nic. Use the same batch number again to add late joiners.</p>
   </section>
-  <section>
-    <h2>Admins</h2>
+  <section class="card formcard">
+    <h2 class="cardtitle">Admins</h2>
     <p>{% for a in admins %}{{ a.name }}{% if not loop.last %}, {% endif %}{% endfor %}</p>
     <form method="post" action="/admin/admins" class="stack">
       <label>Name <input name="name" required></label>
       <label>PIN <input name="pin" type="password" minlength="4" required></label>
-      <button class="secondary">Add admin or change PIN</button>
+      <button class="plain">Add admin or change PIN</button>
     </form>
   </section>
 </aside>

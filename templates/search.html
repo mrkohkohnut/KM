@@ -1,17 +1,28 @@
-{% extends "base.html" %}{% block title %}Search{% endblock %}
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Search{% endblock %}
 {% block body %}
-<div class="sheet">
-  <h1>{% if q %}Results for “{{ q }}”{% else %}Search{% endif %}</h1>
-  {% if q %}
-  <h2 class="sub">Pages</h2>
+<h1 class="large">{% if q %}Results for “{{ q }}”{% else %}Search{% endif %}</h1>
+{% if q %}
+<h2 class="section">Pages</h2>
+{% if pages %}
+<div class="group">
   {% for p in pages %}
-  <a class="pagerow" href="{{ url_for('page', pid=p.id) }}"><strong>{{ p.title }}</strong>
-    <span>{{ p.snip|e|replace('[[', '<mark>'|safe)|replace(']]', '</mark>'|safe) }}</span><small>In {{ p.folder }}</small></a>
-  {% else %}<p class="empty">No pages contain “{{ q }}”.</p>{% endfor %}
-  <h2 class="sub">AAR entries</h2>
-  {% for e in aars %}
-  <a class="pagerow" href="{{ url_for('aar_entry', eid=e.id) }}"><strong>{{ e.title }}</strong><small>{{ e.author }}, {{ e.created_at|when }}</small></a>
-  {% else %}<p class="empty">No AAR entries contain “{{ q }}”.</p>{% endfor %}
-  {% else %}<p>Type in the search box at the top.</p>{% endif %}
+  <a class="row tall" href="{{ url_for('page', pid=p.id) }}">
+    <span class="rowicon {{ 'info' if p.is_readme else 'doc' }}">{{ icon('info' if p.is_readme else 'doc') }}</span>
+    <span class="rowtext"><span class="rowtitle">{{ p.folder ~ ' overview' if p.is_readme else p.title }}</span>
+      <span class="excerpt">{{ p.snip|e|replace('[[', '<mark>'|safe)|replace(']]', '</mark>'|safe) }}</span><small>In {{ p.folder }}</small></span>
+  </a>
+  {% endfor %}
 </div>
+{% else %}<p class="note">No pages contain “{{ q }}”.</p>{% endif %}
+<h2 class="section">AAR entries</h2>
+{% if aars %}
+<div class="group">
+  {% for e in aars %}
+  <a class="row" href="{{ url_for('aar_entry', eid=e.id) }}"><span class="rowtext"><span class="rowtitle">{{ e.title }}</span><small>{{ e.author }}, {{ e.created_at|when }}</small></span></a>
+  {% endfor %}
+</div>
+{% else %}<p class="note">No AAR entries contain “{{ q }}”.</p>{% endif %}
+{% else %}<p class="sub">Type in the search box at the top.</p>{% endif %}
 {% endblock %}

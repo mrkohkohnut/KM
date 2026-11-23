@@ -1,15 +1,21 @@
-{% extends "base.html" %}{% block title %}{{ 'Editing ' ~ page.title if page else 'New page' }}{% endblock %}{% block layout %}wide{% endblock %}
+{% extends "base.html" %}
+{% block title %}{{ ('Editing ' ~ (page.title if not page.is_readme else 'overview')) if page else 'New page' }}{% endblock %}{% block layout %}wide{% endblock %}
 {% block body %}
 <form method="post" class="editor-form">
-  <div class="headrow">
-    <input name="title" class="titlefield" placeholder="Page title" value="{{ page.title if page else '' }}" required aria-label="Page title" {% if not page %}autofocus{% endif %}>
+  <div class="titlebar">
+    {% if page and page.is_readme %}
+    <h1 class="grow">Folder overview</h1>
+    <input type="hidden" name="title" value="Overview">
+    {% else %}
+    <input name="title" class="titlefield grow" placeholder="Page title" value="{{ page.title if page else '' }}" required aria-label="Page title" {% if not page %}autofocus{% endif %}>
+    {% endif %}
     <div class="inline">
-      <a class="button secondary" href="{{ url_for('page', pid=page.id) if page else url_for('folder', fid=folder_id) }}">Cancel</a>
-      <button>Save page</button>
+      <a class="button plain" href="{{ url_for('page', pid=page.id) if page else url_for('folder', fid=folder_id) }}">Cancel</a>
+      <button>Save</button>
     </div>
   </div>
-  <p class="hint">Drop files or images into the page to upload them. <b>Diagram</b> in the toolbar opens draw.io; double-click a diagram to change it.</p>
-  <textarea id="editor" name="html" data-folder="{{ folder_id }}">{{ page.html if page else '' }}</textarea>
+  <p class="hint">Drop files or images onto the page to upload them. Use <b>Diagram</b> for draw.io (double-click a diagram to change it) and the link button to link to other pages, folders or AAR entries.</p>
+  <div class="editor-card"><textarea id="editor" name="html" data-folder="{{ folder_id }}">{{ page.html if page else '' }}</textarea></div>
 </form>
 {% endblock %}
 {% block scripts %}

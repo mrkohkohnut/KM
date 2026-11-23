@@ -34,7 +34,8 @@ PRAGMA journal_mode=WAL;
 CREATE TABLE IF NOT EXISTS folders(id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE);
 CREATE TABLE IF NOT EXISTS pages(
   id INTEGER PRIMARY KEY, folder_id INTEGER NOT NULL REFERENCES folders(id),
-  title TEXT NOT NULL, html TEXT NOT NULL DEFAULT '', updated_by TEXT, updated_at TEXT);
+  title TEXT NOT NULL, html TEXT NOT NULL DEFAULT '', updated_by TEXT, updated_at TEXT,
+  is_readme INTEGER NOT NULL DEFAULT 0);  -- 1 = the folder's overview page
 CREATE TABLE IF NOT EXISTS revisions(
   id INTEGER PRIMARY KEY, page_id INTEGER NOT NULL, title TEXT, html TEXT, saved_by TEXT, saved_at TEXT);
 CREATE VIRTUAL TABLE IF NOT EXISTS pages_fts USING fts5(title, body);
@@ -76,10 +77,47 @@ def connect():
     return c
 
 
+README_TEMPLATE = """<h2>Background</h2>
+<p>What this folder covers, who it is for and why it matters.</p>
+<h2>Network diagram</h2>
+<p>Choose Edit overview, then Diagram in the toolbar to draw it here.</p>
+<h2>Key contacts and links</h2>
+<ul><li>Add people, documents and links to other pages here.</li></ul>"""
+
+
+def now():
+    return datetime.now().strftime("%Y-%m-%d %H:%M")
+
+
+def to_text(html):
+    return htmllib.unescape(re.sub(r"<[^>]+>", " ", html))
+
+
+def write_page(c, pid, folder_id, title, html, who, is_readme=0):
+    """Create or update a page, keep a revision and refresh the search index."""
+    t = now()
+    if pid:
+        c.execute("UPDATE pages SET title=?, html=?, updated_by=?, updated_at=? WHERE id=?", (title, html, who, t, pid))
+    else:
+        pid = c.execute("INSERT INTO pages(folder_id, title, html, updated_by, updated_at, is_readme) VALUES (?,?,?,?,?,?)",
+                        (folder_id, title, html, who, t, is_readme)).lastrowid
+    c.execute("INSERT INTO revisions(page_id, title, html, saved_by, saved_at) VALUES (?,?,?,?,?)",
+              (pid, title, html, who, t))
+    c.execute("DELETE FROM pages_fts WHERE rowid=?", (pid,))
+    c.execute("INSERT INTO pages_fts(rowid, title, body) VALUES (?,?,?)", (pid, title, to_text(html)))
+    return pid
+
+
 def init_data():
     UPLOADS.mkdir(parents=True, exist_ok=True)
     with connect() as c:
         c.executescript(SCHEMA)
+        # upgrade databases created before folder overviews existed
+        if "is_readme" not in [r["name"] for r in c.execute("PRAGMA table_info(pages)")]:
+            c.execute("ALTER TABLE pages ADD COLUMN is_readme INTEGER NOT NULL DEFAULT 0")
+        c.execute("CREATE UNIQUE INDEX IF NOT EXISTS one_overview_per_folder ON pages(folder_id) WHERE is_readme=1")
+        for r in c.execute("SELECT id FROM folders WHERE id NOT IN (SELECT folder_id FROM pages WHERE is_readme=1)").fetchall():
+            write_page(c, None, r["id"], "Overview", README_TEMPLATE, "KM", is_readme=1)
     key = DATA / "secret.key"
     if not key.exists():
         key.write_bytes(os.urandom(32))
@@ -106,10 +144,6 @@ def close_db(_):
     c = g.pop("db", None)
     if c:
         c.close()
-
-
-def now():
-    return datetime.now().strftime("%Y-%m-%d %H:%M")
 
 
 # ---------- identity & permissions ----------
@@ -167,7 +201,7 @@ def require_admin():
         abort(403, "Admins only.")
 
 
-SPINES = ["#5b6b2f", "#a0522d", "#44607a", "#b08d3c", "#6d4c6b", "#2e6b66"]  # folder binder colours
+SPINES = ["#007aff", "#ff9500", "#34c759", "#af52de", "#ff2d55", "#32ade6", "#5856d6", "#a2845e"]  # Apple system colours, one per folder
 
 
 def when(s):
@@ -220,14 +254,19 @@ def who():
 
 @app.route("/")
 def home():
-    folders = db().execute("""SELECT f.*, COUNT(p.id) AS n, MAX(p.updated_at) AS last,
-                              (SELECT updated_by FROM pages WHERE folder_id=f.id ORDER BY updated_at DESC LIMIT 1) AS last_by
-                              FROM folders f LEFT JOIN pages p ON p.folder_id=f.id GROUP BY f.id ORDER BY f.name""").fetchall()
-    recent = db().execute("""SELECT p.id, p.title, p.updated_by, p.updated_at, f.name AS folder
+    folders = all_folders()
+    recent = db().execute("""SELECT p.id, p.title, p.is_readme, p.updated_by, p.updated_at, f.name AS folder
                              FROM pages p JOIN folders f ON f.id=p.folder_id
-                             ORDER BY p.updated_at DESC LIMIT 8""").fetchall()
+                             WHERE p.is_readme=0 OR (SELECT COUNT(*) FROM revisions WHERE page_id=p.id) > 1
+                             ORDER BY p.updated_at DESC LIMIT 8""").fetchall()  # skips untouched new overviews
     aars = db().execute("SELECT * FROM aar_entries ORDER BY id DESC LIMIT 4").fetchall()
     return render_template("home.html", folders=folders, recent=recent, aars=aars)
+
+
+def all_folders():
+    return db().execute("""SELECT f.*, SUM(p.is_readme=0) AS n, MAX(p.updated_at) AS last,
+                           (SELECT updated_by FROM pages WHERE folder_id=f.id ORDER BY updated_at DESC LIMIT 1) AS last_by
+                           FROM folders f LEFT JOIN pages p ON p.folder_id=f.id GROUP BY f.id ORDER BY f.name""").fetchall()
 
 
 @app.post("/folders")
@@ -236,8 +275,10 @@ def new_folder():
     name = request.form["name"].strip()
     if name:
         try:
-            db().execute("INSERT INTO folders(name) VALUES (?)", (name,))
+            fid = db().execute("INSERT INTO folders(name) VALUES (?)", (name,)).lastrowid
+            write_page(db(), None, fid, "Overview", README_TEMPLATE, g.user["name"], is_readme=1)
             db().commit()
+            return redirect(url_for("folder", fid=fid))
         except sqlite3.IntegrityError:
             flash(f"A folder called {name!r} already exists.")
     return redirect(url_for("home"))
@@ -253,43 +294,48 @@ def get_or_404(sql, *args):
 @app.route("/folder/<int:fid>")
 def folder(fid):
     f = get_or_404("SELECT * FROM folders WHERE id=?", fid)
-    pages = [dict(p, excerpt=to_text(p["html"]).strip()[:200]) for p in
-             db().execute("SELECT * FROM pages WHERE folder_id=? ORDER BY title", (fid,))]
+    readme = db().execute("SELECT * FROM pages WHERE folder_id=? AND is_readme=1", (fid,)).fetchone()
+    pages = [dict(p, excerpt=to_text(p["html"]).strip()[:160]) for p in
+             db().execute("SELECT * FROM pages WHERE folder_id=? AND is_readme=0 ORDER BY title", (fid,))]
     editors = [r["subject"] for r in db().execute(
         "SELECT subject FROM perms WHERE folder_id=? ORDER BY subject", (fid,))]
-    return render_template("folder.html", folder=f, pages=pages, editors=editors)
+    return render_template("folder.html", folder=f, readme=readme, pages=pages, editors=editors,
+                           folders=all_folders(), links=page_links(readme["html"]))
 
 
 @app.route("/page/<int:pid>")
 def page(pid):
     p = get_or_404("SELECT p.*, f.name AS folder FROM pages p JOIN folders f ON f.id=p.folder_id WHERE p.id=?", pid)
+    if p["is_readme"]:
+        return redirect(url_for("folder", fid=p["folder_id"]))
     return render_page(p, None)
 
 
 def render_page(p, rev):
-    siblings = db().execute("SELECT id, title FROM pages WHERE folder_id=? ORDER BY title", (p["folder_id"],)).fetchall()
+    siblings = db().execute("SELECT id, title FROM pages WHERE folder_id=? AND is_readme=0 ORDER BY title",
+                            (p["folder_id"],)).fetchall()
     created = db().execute("SELECT saved_by, saved_at FROM revisions WHERE page_id=? ORDER BY id LIMIT 1",
                            (p["id"],)).fetchone()
-    return render_template("page.html", page=p, rev=rev, siblings=siblings, created=created)
+    return render_template("page.html", page=p, rev=rev, siblings=siblings, created=created,
+                           links=page_links(rev["html"] if rev else p["html"]))
 
 
-def to_text(html):
-    return htmllib.unescape(re.sub(r"<[^>]+>", " ", html))
+def page_links(html):
+    """Files and links in a page, for the side panel: [{href, label, kind}] with kind file/internal/web."""
+    found = {}
+    for href, label in re.findall(r'<a\s[^>]*?href="([^"]+)"[^>]*>(.*?)</a>', html, re.S):
+        href = htmllib.unescape(href)
+        if not href.startswith(("/", "http://", "https://", "mailto:")) or href.startswith("//"):
+            continue
+        kind = "file" if href.startswith("/uploads/") else "internal" if href.startswith("/") else "web"
+        found.setdefault(href, {"href": href, "kind": kind,
+                                "label": to_text(label).replace("📎", "").strip() or href})
+    return list(found.values())
 
 
-def save_page(pid, folder_id, title, html):
-    d, t, who_ = db(), now(), g.user["name"]
-    if pid:
-        d.execute("UPDATE pages SET title=?, html=?, updated_by=?, updated_at=? WHERE id=?",
-                  (title, html, who_, t, pid))
-    else:
-        pid = d.execute("INSERT INTO pages(folder_id, title, html, updated_by, updated_at) VALUES (?,?,?,?,?)",
-                        (folder_id, title, html, who_, t)).lastrowid
-    d.execute("INSERT INTO revisions(page_id, title, html, saved_by, saved_at) VALUES (?,?,?,?,?)",
-              (pid, title, html, who_, t))
-    d.execute("DELETE FROM pages_fts WHERE rowid=?", (pid,))
-    d.execute("INSERT INTO pages_fts(rowid, title, body) VALUES (?,?,?)", (pid, title, to_text(html)))
-    d.commit()
+def save_page(pid, folder_id, title, html, is_readme=0):
+    pid = write_page(db(), pid, folder_id, title, html, g.user["name"], is_readme)
+    db().commit()
     return pid
 
 
@@ -300,7 +346,7 @@ def edit(fid=None, pid=None):
     fid = p["folder_id"] if p else get_or_404("SELECT id FROM folders WHERE id=?", fid)["id"]
     require_edit(fid)
     if request.method == "POST":
-        title = request.form["title"].strip() or "Untitled"
+        title = "Overview" if p and p["is_readme"] else request.form["title"].strip() or "Untitled"
         pid = save_page(pid, fid, title, request.form.get("html", ""))
         return redirect(url_for("page", pid=pid))
     return render_template("edit.html", page=p, folder_id=fid)
@@ -310,6 +356,8 @@ def edit(fid=None, pid=None):
 def delete_page(pid):
     require_admin()
     p = get_or_404("SELECT * FROM pages WHERE id=?", pid)
+    if p["is_readme"]:
+        abort(400, "A folder's overview can't be deleted. Edit it instead.")
     db().execute("DELETE FROM pages_fts WHERE rowid=?", (pid,))
     db().execute("DELETE FROM pages WHERE id=?", (pid,))  # revisions are kept
     db().commit()
@@ -319,7 +367,7 @@ def delete_page(pid):
 
 @app.route("/page/<int:pid>/history")
 def history(pid):
-    p = get_or_404("SELECT * FROM pages WHERE id=?", pid)
+    p = get_or_404("SELECT p.*, f.name AS folder FROM pages p JOIN folders f ON f.id=p.folder_id WHERE p.id=?", pid)
     revs = db().execute("SELECT id, title, saved_by, saved_at FROM revisions WHERE page_id=? ORDER BY id DESC",
                         (pid,)).fetchall()
     return render_template("history.html", page=p, revs=revs)
@@ -396,6 +444,21 @@ def aar_entry(eid):
     return render_template("aar_entry.html", e=e, hist=hist)
 
 
+@app.route("/links.json")
+def links_json():
+    """Everything you can link to, grouped for the editor's link dialog."""
+    menu = {}
+    for r in db().execute("""SELECT p.id, p.title, p.is_readme, p.folder_id, f.name AS folder FROM pages p
+                             JOIN folders f ON f.id=p.folder_id ORDER BY f.name, p.is_readme DESC, p.title"""):
+        url = url_for("folder", fid=r["folder_id"]) if r["is_readme"] else url_for("page", pid=r["id"])
+        menu.setdefault(r["folder"], []).append({"title": f"{r['folder']} overview" if r["is_readme"] else r["title"],
+                                                 "value": url})
+    out = [{"title": name, "menu": items} for name, items in menu.items()]
+    aars = [{"title": e["title"], "value": url_for("aar_entry", eid=e["id"])}
+            for e in db().execute("SELECT id, title FROM aar_entries ORDER BY id DESC LIMIT 100")]
+    return out + ([{"title": "AAR log", "menu": [{"title": "AAR log", "value": "/aar"}] + aars}] if aars else [])
+
+
 # ---------- search ----------
 
 @app.route("/search")
@@ -404,7 +467,7 @@ def search():
     pages, aars = [], []
     if q:
         fts = " ".join('"' + t.replace('"', '""') + '"' for t in q.split())
-        pages = db().execute("""SELECT p.id, p.title, f.name AS folder,
+        pages = db().execute("""SELECT p.id, p.title, p.is_readme, f.name AS folder,
                                        snippet(pages_fts, 1, '[[', ']]', '…', 20) AS snip
                                 FROM pages_fts JOIN pages p ON p.id=pages_fts.rowid
                                 JOIN folders f ON f.id=p.folder_id

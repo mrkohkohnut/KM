@@ -1,8 +1,8 @@
 {% extends "base.html" %}{% block title %}Who's using this PC?{% endblock %}{% block layout %}narrow{% endblock %}
 {% block body %}
-<div class="sheet">
+<div class="card signin">
   <h1>Who's using this PC?</h1>
-  <p>Your name goes on everything you write. Admins also enter their PIN.</p>
+  <p class="sub">Your name goes on everything you write. Admins also enter their PIN.</p>
   <form method="post" class="stack">
     <label>Name
       <select name="name" required autofocus>
@@ -15,7 +15,7 @@
       </select>
     </label>
     <label>PIN <small>Admins only</small><input name="pin" type="password" autocomplete="off"></label>
-    <button>Continue</button>
+    <button class="wide">Continue</button>
   </form>
 </div>
 {% endblock %}

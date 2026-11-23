@@ -57,17 +57,21 @@ function openDrawio(ed, img) {
 tinymce.init({
   selector: '#editor',
   license_key: 'gpl',
-  height: 'calc(100vh - 210px)',
+  height: 'calc(100vh - 230px)',
   min_height: 400,
   menubar: false, promotion: false, branding: false,
   plugins: 'lists link image table code autolink',
   toolbar: 'undo redo | blocks | bold italic underline | bullist numlist | link image table | drawio | code',
   relative_urls: false, convert_urls: false,
   images_upload_handler: async blobInfo => (await upload(new File([blobInfo.blob()], blobInfo.filename()))).url,
-  content_style: 'body{font:17px/1.7 "IBM Plex Serif",Georgia,serif;max-width:72ch;margin:24px auto;padding:0 24px}'
-    + 'h1,h2,h3,h4{font-family:"IBM Plex Sans","Segoe UI",sans-serif} img{max-width:100%;height:auto} img[data-drawio]{cursor:pointer}',
+  content_style: 'body{font:17px/1.6 -apple-system,BlinkMacSystemFont,Inter,"Segoe UI",sans-serif;letter-spacing:-.008em;max-width:70ch;margin:28px auto;padding:0 28px}'
+    + 'h1,h2,h3{letter-spacing:-.02em} h2{font-size:24px} img{max-width:100%;height:auto;border-radius:10px} img[data-drawio]{cursor:pointer}'
+    + 'table{border-collapse:collapse} td,th{border:1px solid #d2d2d7;padding:8px 12px}',
   skin: dark ? 'oxide-dark' : 'oxide',
-  content_css: [dark ? 'dark' : 'default', 'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@600&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap'],
+  content_css: dark ? 'dark' : 'default',  // no web fonts in the editor, so it never waits on the internet
+  link_list: '/links.json',
+  link_title: false,
+  link_target_list: false,
   setup(ed) {
     ed.ui.registry.addButton('drawio', {text: 'Diagram', tooltip: 'Insert draw.io diagram', onAction: () => openDrawio(ed, null)});
     ed.on('dblclick', e => { if (e.target.nodeName === 'IMG' && e.target.hasAttribute('data-drawio')) openDrawio(ed, e.target); });

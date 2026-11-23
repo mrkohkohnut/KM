@@ -1,12 +1,12 @@
-{% extends "base.html" %}{% block title %}First-time setup{% endblock %}{% block layout %}narrow{% endblock %}
+{% extends "base.html" %}{% block title %}Set up KM{% endblock %}{% block layout %}narrow{% endblock %}
 {% block body %}
-<div class="sheet">
+<div class="card signin">
   <h1>Set up KM</h1>
-  <p>Create the first admin. Admins enter this PIN when they switch into admin mode.</p>
+  <p class="sub">Create the first admin. Admins enter this PIN when they switch into admin mode.</p>
   <form method="post" class="stack">
     <label>Admin name <input name="name" required autofocus></label>
     <label>PIN <small>At least 4 characters</small><input name="pin" type="password" minlength="4" required></label>
-    <button>Create admin</button>
+    <button class="wide">Create admin</button>
   </form>
 </div>
 {% endblock %}

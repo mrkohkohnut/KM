@@ -1,43 +1,49 @@
-{% extends "base.html" %}{% block layout %}duo{% endblock %}
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block layout %}duo{% endblock %}
 {% block body %}
 <div class="center">
-  <div class="headrow">
-    <h1>Folders</h1>
+  <div class="titlebar">
+    <h1 class="large grow">Folders</h1>
     {% if is_admin() %}
     <form method="post" action="/folders" class="inline">
-      <input name="name" placeholder="New folder name" required aria-label="New folder name"><button>Add folder</button>
+      <input name="name" placeholder="New folder name" required aria-label="New folder name"><button>{{ icon('plus') }}Add folder</button>
     </form>
     {% endif %}
   </div>
   {% if folders %}
-  <ul class="binders">
+  <ul class="tiles">
     {% for f in folders %}
-    <li style="--spine: {{ spine(f.id) }}">
+    <li style="--tint: {{ spine(f.id) }}">
       <a href="{{ url_for('folder', fid=f.id) }}">
+        <span class="bigfolder">{{ icon('folder') }}</span>
         <strong>{{ f.name }}</strong>
-        <span>{{ f.n }} page{{ '' if f.n == 1 else 's' }}</span>
-        {% if f.last %}<small>Updated {{ f.last|when }} by {{ f.last_by }}</small>{% else %}<small>No pages yet</small>{% endif %}
+        <small>{{ f.n or 0 }} page{{ '' if f.n == 1 else 's' }}{% if f.n %}, updated {{ (f.last|when).split(',')[0] }}{% endif %}</small>
       </a>
     </li>
     {% endfor %}
   </ul>
   {% else %}
-  <p class="empty">{% if is_admin() %}Add the first folder above, then give a batch edit rights to it in Admin.{% else %}There are no folders yet. An admin needs to create one.{% endif %}</p>
+  <div class="empty-card"><p>{% if is_admin() %}Add the first folder above. Each folder gets an overview page for its background and network diagram.{% else %}There are no folders yet. An admin needs to create one.{% endif %}</p></div>
   {% endif %}
 </div>
 <aside class="right">
   <section>
     <h2>Latest AAR</h2>
-    {% for e in aars %}
-    <a class="mini" href="{{ url_for('aar_entry', eid=e.id) }}"><strong>{{ e.title }}</strong><small>{{ e.author }}, {{ e.created_at|when }}</small></a>
-    {% else %}<p class="empty">No entries yet.</p>{% endfor %}
+    <div class="group">
+      {% for e in aars %}
+      <a class="row" href="{{ url_for('aar_entry', eid=e.id) }}"><span class="rowtext"><span>{{ e.title }}</span><small>{{ e.author }}, {{ e.created_at|when }}</small></span><span class="chev">{{ icon('chev') }}</span></a>
+      {% else %}<div class="row"><span class="rowtext note">No entries yet.</span></div>{% endfor %}
+    </div>
     <a class="more" href="/aar">Open the AAR log</a>
   </section>
   <section>
     <h2>Recently updated</h2>
-    {% for p in recent %}
-    <a class="mini" href="{{ url_for('page', pid=p.id) }}"><strong>{{ p.title }}</strong><small>{{ p.folder }}, by {{ p.updated_by }}</small></a>
-    {% else %}<p class="empty">Nothing yet.</p>{% endfor %}
+    <div class="group">
+      {% for p in recent %}
+      <a class="row" href="{{ url_for('page', pid=p.id) }}"><span class="rowicon {{ 'info' if p.is_readme else 'doc' }}">{{ icon('info' if p.is_readme else 'doc') }}</span><span class="rowtext"><span>{{ p.folder ~ ' overview' if p.is_readme else p.title }}</span><small>{{ p.folder }}, by {{ p.updated_by }}</small></span></a>
+      {% else %}<div class="row"><span class="rowtext note">Nothing yet.</span></div>{% endfor %}
+    </div>
   </section>
 </aside>
 {% endblock %}

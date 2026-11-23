@@ -1,0 +1,17 @@
+{# "Files and links" panel built from the links inside a page #}
+{% from "_icons.html" import icon %}
+<section>
+  <h2>Files and links</h2>
+  {% if links %}
+  <div class="group">
+    {% for l in links %}
+    <a class="row" href="{{ l.href }}" {% if l.kind == 'web' %}target="_blank" rel="noopener"{% endif %}>
+      <span class="rowicon {{ l.kind }}">{{ icon({'file': 'clip', 'internal': 'link', 'web': 'globe'}[l.kind]) }}</span>
+      <span class="rowtext"><span>{{ l.label }}</span><small>{{ {'file': 'File', 'internal': 'In KM', 'web': l.href.split('/')[2] if '://' in l.href else 'Link'}[l.kind] }}</small></span>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="note">Files you drop into the page and links you add appear here.</p>
+  {% endif %}
+</section>

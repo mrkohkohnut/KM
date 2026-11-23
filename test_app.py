@@ -20,6 +20,14 @@ names = [r[0] for r in sqlite3.connect(km.DB_PATH).execute("SELECT name FROM use
 assert names == ["0521alex", "0521nic", "0521sam"], names
 
 post("/folders", name="Module 1"); post("/folders", name="Module 2")
+# each folder gets an overview page that opens at the top of the folder and can't be deleted
+assert b"Network diagram" in c.get("/folder/1").data
+assert c.get("/page/1").headers["Location"].endswith("/folder/1")
+assert post("/page/1/delete").status_code == 400
+post("/page/1/edit", title="ignored", html='<p>Lab network</p><a href="/uploads/x/a.pdf">📎 a.pdf</a> <a href="https://example.com">vendor</a> <a href="javascript:alert(1)">bad</a>')
+assert sqlite3.connect(km.DB_PATH).execute("SELECT title FROM pages WHERE id=1").fetchone()[0] == "Overview"
+links = km.page_links(sqlite3.connect(km.DB_PATH).execute("SELECT html FROM pages WHERE id=1").fetchone()[0])
+assert [(l["kind"], l["label"]) for l in links] == [("file", "a.pdf"), ("web", "vendor")], links
 post("/admin/perm", folder_id="1", subject="batch:0521")  # whole batch edits Module 1
 post("/admin/perm", folder_id="2", subject="0521sam")      # only sam edits Module 2
 
@@ -40,11 +48,12 @@ assert c.get(url).data == b"PDFDATA"
 assert c.post("/upload", data={"folder_id": "2", "file": (io.BytesIO(b"x"), "a.txt")}).status_code == 403
 
 # edit + history + restore
-post("/page/1/edit", title="Router setup", html="<p>Plug in the blue cable</p>")
-assert b"blue cable" in c.get("/page/1").data
+post("/page/3/edit", title="Router setup", html="<p>Plug in the blue cable</p>")
+assert b"blue cable" in c.get("/page/3").data
 assert b"blue" in c.get("/search?q=blue").data and b"Router setup" in c.get("/search?q=cable").data
-post("/revision/1/restore")
-assert b"blue" not in c.get("/page/1").data
+post("/revision/4/restore")  # rev 1-2 = overviews, 3 = edit above, 4 = Router setup first save
+assert b"blue" not in c.get("/page/3").data
+assert any(m["title"] == "Module 1" for m in c.get("/links.json").get_json())
 
 # AAR: anyone adds, trainees can't edit, nobody deletes (enforced by the database)
 post("/aar", title="Exercise 1", body="Went well")

@@ -1,36 +1,66 @@
 {% extends "base.html" %}{% block title %}{{ folder.name }}{% endblock %}{% block layout %}tri{% endblock %}
+{% from "_icons.html" import icon %}
 {% block crumbs %}{% with items = [(folder.name, None)] %}{% include "_crumbs.html" %}{% endwith %}{% endblock %}
 {% block body %}
-<aside class="left" style="--spine: {{ spine(folder.id) }}">
-  <section class="folderhead"><strong>{{ folder.name }}</strong><small>{{ pages|length }} page{{ '' if pages|length == 1 else 's' }}</small></section>
-  <section>
-    <h2>Who can edit</h2>
-    <ul class="plain">
-      <li>Admins</li>
-      {% for e in editors %}<li>{{ e|replace('batch:', 'Batch ') }}</li>{% endfor %}
-    </ul>
-    {% if is_admin() %}<a class="more" href="/admin#perms">Change edit rights</a>{% endif %}
-  </section>
+<aside class="left">
+  <h2>Folders</h2>
+  <nav class="sidebar" aria-label="Folders">
+    {% for f in folders %}
+    <a href="{{ url_for('folder', fid=f.id) }}" style="--tint: {{ spine(f.id) }}" {% if f.id == folder.id %}aria-current="page"{% endif %}>
+      <span class="tinted">{{ icon('folder') }}</span><span class="grow">{{ f.name }}</span><small>{{ f.n or 0 }}</small>
+    </a>
+    {% endfor %}
+  </nav>
 </aside>
 <div class="center">
-  <div class="sheet">
-    <h1>{{ folder.name }}</h1>
+  <div class="titlebar" style="--tint: {{ spine(folder.id) }}">
+    <span class="bigfolder">{{ icon('folder') }}</span>
+    <div class="grow">
+      <h1>{{ folder.name }}</h1>
+      <p class="sub">{{ pages|length }} page{{ '' if pages|length == 1 else 's' }}{% if readme.updated_by != 'KM' %}, overview updated {{ readme.updated_at|when }} by {{ readme.updated_by }}{% endif %}</p>
+    </div>
+    {% if can_edit(folder.id) %}<a class="button" href="{{ url_for('edit', fid=folder.id) }}">{{ icon('plus') }}New page</a>{% endif %}
+  </div>
+
+  <article class="card content">
+    <div class="cardhead">
+      <h2>{{ icon('info') }}Overview</h2>
+      <div class="inline">
+        <a class="button plain" href="{{ url_for('history', pid=readme.id) }}">History</a>
+        {% if can_edit(folder.id) %}<a class="button tinted-btn" href="{{ url_for('edit', pid=readme.id) }}">{{ icon('pencil') }}Edit overview</a>{% endif %}
+      </div>
+    </div>
+    {{ readme.html|safe }}
+  </article>
+
+  <h2 class="section">Pages</h2>
+  {% if pages %}
+  <div class="group">
     {% for p in pages %}
-    <a class="pagerow" href="{{ url_for('page', pid=p.id) }}">
-      <strong>{{ p.title }}</strong>
-      {% if p.excerpt %}<span>{{ p.excerpt }}{% if p.excerpt|length == 200 %}…{% endif %}</span>{% endif %}
-      <small>Updated {{ p.updated_at|when }} by {{ p.updated_by }}</small>
+    <a class="row tall" href="{{ url_for('page', pid=p.id) }}">
+      <span class="rowicon doc">{{ icon('doc') }}</span>
+      <span class="rowtext"><span class="rowtitle">{{ p.title }}</span>{% if p.excerpt %}<span class="excerpt">{{ p.excerpt }}</span>{% endif %}</span>
+      <small class="rowmeta">{{ p.updated_at|when }}<br>{{ p.updated_by }}</small>
+      <span class="chev">{{ icon('chev') }}</span>
     </a>
-    {% else %}
-    <p class="empty">{% if can_edit(folder.id) %}This folder is empty. Start with <a href="{{ url_for('edit', fid=folder.id) }}">a new page</a>.{% else %}This folder is empty.{% endif %}</p>
     {% endfor %}
   </div>
+  {% else %}
+  <div class="empty-card">
+    <p>No pages yet.{% if can_edit(folder.id) %} Pages hold the detail: procedures, notes, files and links.{% endif %}</p>
+    {% if can_edit(folder.id) %}<a class="button" href="{{ url_for('edit', fid=folder.id) }}">{{ icon('plus') }}New page</a>{% endif %}
+  </div>
+  {% endif %}
 </div>
 <aside class="right">
+  {% include "_links.html" %}
   <section>
-    <h2>Actions</h2>
-    {% if can_edit(folder.id) %}<a class="action" href="{{ url_for('edit', fid=folder.id) }}">New page</a>
-    {% else %}<p class="empty">You can read this folder. Ask an admin for edit rights.</p>{% endif %}
+    <h2>Who can edit</h2>
+    <div class="group">
+      <div class="row"><span class="rowicon person">{{ icon('person') }}</span><span class="rowtext">Admins</span></div>
+      {% for e in editors %}<div class="row"><span class="rowicon person">{{ icon('person') }}</span><span class="rowtext">{{ e|replace('batch:', 'Batch ') }}</span></div>{% endfor %}
+    </div>
+    {% if is_admin() %}<a class="more" href="/admin#perms">Change edit rights</a>{% endif %}
   </section>
 </aside>
 {% endblock %}
