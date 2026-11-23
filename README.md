@@ -2,21 +2,25 @@
 
 A small knowledge base for training batches. It runs on one Windows PC, and the other PCs on the network use it through a browser.
 
-## Install on the host PC (PC1)
+## Install on the host PC (PC1) with Docker
 
-1. Install Python 3 from python.org and tick **"Add python.exe to PATH"**.
-2. Copy this folder to the host, e.g. `C:\km`.
-3. Open PowerShell **as Administrator** in that folder and run:
+1. Install **Docker Desktop**. In its settings, turn on **"Start Docker Desktop when you sign in"**.
+2. Copy this folder to PC1, e.g. `C:\km`, then in a terminal in that folder run:
    ```
-   powershell -ExecutionPolicy Bypass -File setup-windows.ps1 -BackupDir "E:\km-backup"
+   docker compose up -d --build
    ```
-   This installs Flask and Waitress, starts KM at boot, schedules a 02:00 backup and turns off sleep.
-4. In the router, give PC1 a fixed IP (a DHCP reservation).
-5. On any PC, open `http://<PC1's IP>:8080`. The first visit asks you to create the admin and its PIN.
+3. In the router, give PC1 a fixed IP (a DHCP reservation).
+4. On any PC, open `http://<PC1's IP>:8080`. The first visit asks you to create the admin and its PIN.
 
-To run it by hand and see errors, use `python app.py`. When it runs in the background, errors go to `data\km.log`.
+Docker restarts KM after a crash and whenever Docker Desktop starts. Docker Desktop starts when someone signs in to PC1, so PC1 must be signed in to after a reboot. Set PC1 to never sleep (Settings → Power → Sleep: Never).
 
-The script adds no firewall rule because the PCs' firewalls are off. If you turn the firewall on later, allow inbound TCP 8080.
+| Task | Command |
+|---|---|
+| Update after changing the code | `docker compose up -d --build` |
+| See logs and errors | `docker compose logs -f` |
+| Stop | `docker compose down` (your data is kept) |
+
+The PCs' firewalls are off, so no rule is needed. If you turn the firewall on, allow inbound TCP 8080.
 
 ## How it's used
 
@@ -28,13 +32,18 @@ The script adds no firewall rule because the PCs' firewalls are off. If you turn
 
 ## Where things are saved (on PC1)
 
+The database and uploaded files live in the Docker volume `km-data`, which is kept when the container is rebuilt:
+
 ```
-data/km.db        pages, history, users, rights, AAR (SQLite)
-data/uploads/     dropped files and draw.io diagrams (PNG with the diagram inside)
-data/secret.key   signs the "who am I" cookie; keep it private
+km.db        pages, history, users, rights, AAR (SQLite)
+uploads/     dropped files and draw.io diagrams (PNG with the diagram inside)
+secret.key   signs the "who am I" cookie; keep it private
 ```
 
-To back up by hand, run `python app.py backup E:\km-backup`.
+KM backs itself up when it starts and then every 24 hours, into `.\backup\` next to `docker-compose.yml`. Each backup is plain files: a dated `km-YYYYMMDD.db` and a copy of `uploads\`. To keep backups on another drive, change `./backup` in `docker-compose.yml` to e.g. `E:/km-backup`.
+
+To restore, stop KM and copy a backup `.db` back in as `km.db`:
+`docker compose down`, then `docker compose run --rm -v C:/km/backup:/b km cp /b/km-YYYYMMDD.db /app/data/km.db`, then `docker compose up -d`. Uploaded files are restored the same way: copy `/b/uploads/.` into `/app/data/uploads/`.
 
 ## Check
 

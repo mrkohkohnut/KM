@@ -478,14 +478,24 @@ def backup(dest):
     print(f"Backed up to {dest}")
 
 
+def backup_daily(dest):
+    while True:  # one dated .db per day (same-day runs overwrite), uploads mirrored
+        try:
+            backup(dest)
+        except Exception as e:
+            print(f"BACKUP FAILED: {e}")
+        time.sleep(24 * 60 * 60)
+
+
 if __name__ == "__main__":
     if sys.argv[1:2] == ["backup"]:
         backup(sys.argv[2] if len(sys.argv) > 2 else BASE / "backup")
     else:
         import logging
+        import threading
         from waitress import serve
-        if sys.stdout is None:  # started by the scheduled task (pythonw): no console, so log to a file
-            sys.stdout = sys.stderr = open(DATA / "km.log", "a", buffering=1)
+        if os.environ.get("KM_BACKUP"):
+            threading.Thread(target=backup_daily, args=(os.environ["KM_BACKUP"],), daemon=True).start()
         logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
         print(f"KM running on http://0.0.0.0:{PORT}  (other PCs: http://<this PC's IP>:{PORT})")
         serve(app, host="0.0.0.0", port=PORT, threads=8)
