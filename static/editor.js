@@ -42,18 +42,21 @@ async function toDataUrl(src) {
 
 // Opens draw.io full screen with `xml` (a diagram PNG as a data URL, .drawio XML, or '' for a new one).
 // Resolves with the uploaded PNG's URL (the PNG keeps the editable diagram inside it), or null if closed unsaved.
-function drawio(xml, folderId) {
+// silent: load `xml` in a hidden draw.io and save it straight away (importing a .drawio file without any clicks).
+function drawio(xml, folderId, silent = false) {
   return new Promise(resolve => {
     const frame = document.createElement('iframe');
-    frame.className = 'drawio-frame';
+    frame.className = silent ? 'drawio-frame silent' : 'drawio-frame';
     frame.src = DRAWIO;
     document.body.appendChild(frame);
     const send = m => frame.contentWindow.postMessage(JSON.stringify(m), '*');
-    const done = url => { window.removeEventListener('message', onMessage); frame.remove(); resolve(url); };
+    const timer = silent && setTimeout(() => { alert('draw.io could not read that file.'); done(null); }, 30000);
+    const done = url => { clearTimeout(timer); window.removeEventListener('message', onMessage); frame.remove(); resolve(url); };
     async function onMessage(e) {
       if (e.source !== frame.contentWindow || typeof e.data !== 'string') return;
       let m; try { m = JSON.parse(e.data); } catch { return; }
       if (m.event === 'init') send({action: 'load', autosave: 0, xml});
+      else if (m.event === 'load' && silent) send({action: 'export', format: 'xmlpng'});
       else if (m.event === 'save') send({action: 'export', format: 'xmlpng', spinKey: 'saving'});
       else if (m.event === 'export') {
         try { done((await upload(dataUrlToFile(m.data, 'diagram.png'), folderId)).url); }
@@ -281,49 +284,83 @@ if (pageHolder) {
   });
 }
 
-// Folder overview, Network diagram: no text, just the draw.io diagram. The pen opens draw.io on the current
-// diagram (or a .drawio file attached to the folder, or a blank one) and saving puts the diagram in place.
-function chooseStart(body, files) {
-  return new Promise(resolve => {
-    const shown = body.innerHTML;
-    const box = document.createElement('div');
-    box.className = 'diagram-start';
-    box.innerHTML = '<p>Start from a diagram file attached to this folder, or draw a new one.</p><div class="inline"></div>';
-    const done = choice => { body.innerHTML = shown; resolve(choice); };
-    const add = (label, cls, choice) => {
-      const b = document.createElement('button');
-      b.type = 'button'; b.className = cls; b.textContent = label;
-      b.addEventListener('click', () => done(choice));
-      box.lastElementChild.append(b);
-    };
-    files.forEach(f => add(f.name, '', f.href));
-    add('Blank diagram', 'plain', '');
-    add('Cancel', 'plain', null);
-    body.replaceChildren(box);
+// Folder overview, Network diagram: no text, just the draw.io diagram.
+//  - empty: drop a .drawio file on it, use a .drawio file attached to the folder, or draw a new one
+//  - the + button imports a .drawio file from the computer (replacing the diagram, after asking)
+//  - clicking the diagram opens it in draw.io to edit
+const DIAGRAM_FILE = /\.(drawio|xml|png)$/i;
+
+function readDiagramFile(file) {  // .drawio/.xml as text; a .png exported from draw.io as a data URL (it holds the diagram)
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => res(fr.result);
+    fr.onerror = () => rej(fr.error);
+    /\.png$/i.test(file.name) ? fr.readAsDataURL(file) : fr.readAsText(file);
   });
 }
 
-async function editDiagram(section) {
+function diagramSection(section) {
   const body = section.querySelector('.ov-body');
-  const current = [...body.querySelectorAll('img[data-drawio]')].map(i => i.getAttribute('src'));
-  let xml = '';
-  if (current.length) xml = await toDataUrl(current[0]);
-  else {
-    const files = [...new Map([...document.querySelectorAll('.overview a[href$=".drawio"]')]
-      .map(a => [a.getAttribute('href'), {href: a.getAttribute('href'), name: a.textContent.replace('📎', '').trim()}])).values()];
-    const start = files.length ? await chooseStart(body, files) : '';
-    if (start === null) return;
-    if (start) xml = await (await fetch(start)).text();
+  const add = section.querySelector('.pen');
+  const picker = section.querySelector('input[type=file]');
+  const folder = section.dataset.folder;
+
+  async function show(url) {
+    const fd = new FormData();
+    fd.append('html', `<p><img data-drawio="1" src="${esc(url)}" alt="Network diagram"></p>`);
+    const r = await fetch(section.dataset.save, {method: 'POST', body: fd});
+    if (!r.ok) return alert(r.status === 403 ? 'You no longer have edit rights for this folder.' : 'Saving failed (' + r.status + ').');
+    body.innerHTML = (await r.json()).html;
+    section.dataset.empty = '';
   }
-  const url = await drawio(xml, section.dataset.folder);
-  if (!url) return;  // closed without saving
-  const urls = current.length ? [url, ...current.slice(1)] : [url];
-  const fd = new FormData();
-  fd.append('html', urls.map(u => `<p><img data-drawio="1" src="${esc(u)}" alt="Network diagram"></p>`).join(''));
-  const r = await fetch(section.dataset.save, {method: 'POST', body: fd});
-  if (!r.ok) return alert(r.status === 403 ? 'You no longer have edit rights for this folder.' : 'Saving failed (' + r.status + ').');
-  body.innerHTML = (await r.json()).html;
-  section.dataset.empty = '';
+  async function importXml(xml) {
+    body.classList.add('busy');
+    const url = await drawio(xml, folder, true);
+    body.classList.remove('busy');
+    if (url) await show(url);
+  }
+  async function importFile(file) {
+    if (!DIAGRAM_FILE.test(file.name)) return alert('Choose a draw.io file (.drawio).');
+    if (!section.dataset.empty && !confirm('Replace the current network diagram with ' + file.name + '?')) return;
+    await importXml(await readDiagramFile(file));
+  }
+
+  // buttons for .drawio files already attached to the folder (e.g. from the Drive import)
+  const drop = body.querySelector('.diagram-drop .inline');
+  const seen = new Set();
+  document.querySelectorAll('.overview a[href$=".drawio"]').forEach(a => {
+    const href = a.getAttribute('href');
+    if (!drop || seen.has(href)) return;
+    seen.add(href);
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.dataset.use = href;
+    b.textContent = 'Use ' + a.textContent.replace('📎', '').trim();
+    drop.insertBefore(b, drop.querySelector('[data-new]'));
+  });
+
+  add.addEventListener('click', () => picker.click());
+  picker.addEventListener('change', () => { if (picker.files[0]) importFile(picker.files[0]); picker.value = ''; });
+  body.addEventListener('click', async e => {
+    const img = e.target.closest('img[data-drawio]');
+    const use = e.target.closest('[data-use]');
+    if (img) { const url = await drawio(await toDataUrl(img.getAttribute('src')), folder); if (url) await show(url); }
+    else if (use) importXml(await (await fetch(use.dataset.use)).text());
+    else if (e.target.closest('[data-new]')) { const url = await drawio('', folder); if (url) await show(url); }
+  });
+  body.addEventListener('dragover', e => {
+    if (!section.dataset.empty || !e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault();
+    body.classList.add('dragging');
+  });
+  body.addEventListener('dragleave', () => body.classList.remove('dragging'));
+  body.addEventListener('drop', e => {
+    body.classList.remove('dragging');
+    const file = e.dataTransfer?.files?.[0];
+    if (!file || !section.dataset.empty) return;
+    e.preventDefault();
+    importFile(file);
+  });
 }
 
 // Folder overview, other sections: the pen turns just that section into a block editor, saved in place.
@@ -331,7 +368,7 @@ const EMPTY = '<p class="note">Nothing here yet.</p>';
 document.querySelectorAll('.ov-section[data-save]').forEach(section => {
   const pen = section.querySelector('.pen');
   const body = section.querySelector('.ov-body');
-  if (section.id === 'diagram') return pen.addEventListener('click', () => editDiagram(section));
+  if (section.id === 'diagram') return diagramSection(section);
   pen.addEventListener('click', () => {
     const shown = body.innerHTML;
     const holder = document.createElement('div');

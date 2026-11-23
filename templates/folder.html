@@ -32,9 +32,20 @@
              {% if can_edit(folder.id) %}data-save="{{ url_for('save_section', fid=folder.id, key=key) }}"{% endif %}>
       <div class="ov-head">
         <h2>{{ title }}</h2>
-        {% if can_edit(folder.id) %}<button type="button" class="pen" title="{{ 'Edit in draw.io' if key == 'diagram' else 'Edit ' ~ title|lower }}" aria-label="{{ 'Edit the network diagram in draw.io' if key == 'diagram' else 'Edit ' ~ title|lower }}">{{ icon('pencil') }}</button>{% endif %}
+        {% if can_edit(folder.id) and key == 'diagram' %}
+        <button type="button" class="pen" title="Import a draw.io file from your computer" aria-label="Import a draw.io file from your computer">{{ icon('plus') }}</button>
+        <input type="file" accept=".drawio,.xml,.png" hidden>
+        {% elif can_edit(folder.id) %}<button type="button" class="pen" title="Edit {{ title|lower }}" aria-label="Edit {{ title|lower }}">{{ icon('pencil') }}</button>{% endif %}
       </div>
-      <div class="ov-body">{{ sections[key]|safe if sections[key] else ('<p class="note">' ~ ('No diagram yet.' ~ (' Click the pen to draw it in draw.io.' if can_edit(folder.id) else '') if key == 'diagram' else 'Nothing here yet.') ~ '</p>')|safe }}</div>
+      <div class="ov-body{{ ' editable' if key == 'diagram' and can_edit(folder.id) }}" {% if key == 'diagram' and can_edit(folder.id) and sections[key] %}title="Click to edit in draw.io"{% endif %}>
+        {%- if sections[key] %}{{ sections[key]|safe }}
+        {%- elif key == 'diagram' and can_edit(folder.id) %}
+        <div class="diagram-drop">
+          <p><b>Drop a .drawio file here</b>, or click + to choose one from your computer.</p>
+          <div class="inline"><button type="button" class="plain" data-new>Draw a new diagram</button></div>
+        </div>
+        {%- else %}<p class="note">{{ 'No diagram yet.' if key == 'diagram' else 'Nothing here yet.' }}</p>{% endif -%}
+      </div>
     </section>
     {% endfor %}
   </article>

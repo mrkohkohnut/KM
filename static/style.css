@@ -325,3 +325,12 @@ h1.large + .card { margin-top: 18px; }
 #diagram .ov-body img { display: block; max-width: 100%; margin: 6px 0; border-radius: 10px; }
 .diagram-start { background: var(--accent-soft); border-radius: 12px; padding: 14px 16px; margin-top: 8px; }
 .diagram-start p { margin: 0 0 10px; }
+.drawio-frame.silent { opacity: 0; pointer-events: none; z-index: -1; }
+.diagram-drop { border: 2px dashed var(--sep); border-radius: 14px; padding: 22px; margin-top: 8px; text-align: center; transition: background .15s, border-color .15s; }
+.diagram-drop p { margin: 0 0 12px; color: var(--sub); }
+.diagram-drop b { color: var(--text); }
+.diagram-drop .inline { justify-content: center; }
+.ov-body.dragging .diagram-drop { border-color: var(--accent); background: var(--accent-soft); }
+.ov-body.editable img[data-drawio] { cursor: pointer; transition: box-shadow .15s; }
+.ov-body.editable img[data-drawio]:hover { box-shadow: 0 0 0 3px var(--accent-soft); }
+.ov-body.busy { opacity: .5; pointer-events: none; }

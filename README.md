@@ -27,7 +27,7 @@ The PCs' firewalls are off, so no rule is needed. If you turn the firewall on, a
 - **Admin → Batches:** enter batch `0521` and the names `nic, sam`. That creates the users `0521nic` and `0521sam`.
 - **Users:** trainees pick their name with no password. Admins need their PIN, and admin mode turns off after 2 hours idle.
 - **Admin → Who can edit:** give edit rights for a folder to a whole batch or to one user. Everyone can view everything.
-- **Folder overview:** each folder's overview has four sections (Background, Network diagram, Done by, Links to resources). Click a section's pen to edit just that section in place, then Save. The Network diagram section is a draw.io diagram only: its pen opens draw.io.
+- **Folder overview:** each folder's overview has four sections (Background, Network diagram, Done by, Links to resources). Click a section's pen to edit just that section in place, then Save. The Network diagram section is a draw.io diagram only: drop a `.drawio` file on it (or click its **+** to choose one from your computer), then click the diagram to edit it in draw.io.
 - **Pages:** drag files into the editor and they upload to PC1. The **Diagram** button opens draw.io, and double-clicking a diagram edits it. Every save is kept in **History** and can be restored.
 - **AAR:** anyone can add an entry. Only admins can edit, and every earlier version is kept. Nobody can delete an entry, because the database itself refuses.
 
@@ -48,7 +48,7 @@ The importer splits the folder into two KM folders, **RivalBlocks** and **TikTub
 
 Everything is attached as files: nested Drive folders (Emails, Audio, SMB and so on) become pages listing their files, and the rest is listed on each folder's overview, with `.drawio` files under Network diagram. Images, audio and short text files show on the page. The only thing extracted is the AAR table in `NV Slides 3.0 Final Final`, which becomes an AAR entry. AAR entries can never be deleted, so check that the dry run shows `AAR entry: ...` first. Running the import again skips anything already imported.
 
-Imported `.drawio` files are listed under Links to resources (Diagram files). To put one in the overview, click the pen next to **Network diagram**, choose the file and save in draw.io.
+Imported `.drawio` files are listed under Links to resources (Diagram files). While a folder has no network diagram, its Network diagram section offers a **Use …** button for each of them.
 
 ## Where things are saved (on PC1)
 
