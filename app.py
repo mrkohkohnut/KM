@@ -330,7 +330,7 @@ def page_links(html):
             continue
         kind = "file" if href.startswith("/uploads/") else "internal" if href.startswith("/") else "web"
         found.setdefault(href, {"href": href, "kind": kind,
-                                "label": to_text(label).replace("📎", "").strip() or href})
+                                "label": to_text(label).replace("📎", "").replace("↗", "").strip() or href})
     return list(found.values())
 
 
