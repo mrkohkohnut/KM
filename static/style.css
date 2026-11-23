@@ -322,3 +322,6 @@ h1.large + .card { margin-top: 18px; }
 [hidden] { display: none !important; }
 .section-editor .codex-editor__redactor { padding-bottom: 24px !important; }
 #blocks [contenteditable]:focus-visible, .section-editor [contenteditable]:focus-visible { outline: none; box-shadow: none; }
+#diagram .ov-body img { display: block; max-width: 100%; margin: 6px 0; border-radius: 10px; }
+.diagram-start { background: var(--accent-soft); border-radius: 12px; padding: 14px 16px; margin-top: 8px; }
+.diagram-start p { margin: 0 0 10px; }

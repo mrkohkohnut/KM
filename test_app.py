@@ -80,14 +80,17 @@ assert r.get_json() == {"html": "<ul><li>0521nic</li></ul>"}
 post(f"/folder/{sec}/section/background", html="<p>Game studio</p>")
 saved = km.overview_sections(sqlite3.connect(km.DB_PATH).execute(
     "SELECT html FROM pages WHERE folder_id=? AND is_readme=1", (sec,)).fetchone()[0])
-assert saved["people"] == "<ul><li>0521nic</li></ul>" and saved["background"] == "<p>Game studio</p>" and "Diagram" in saved["diagram"]
+assert saved["people"] == "<ul><li>0521nic</li></ul>" and saved["background"] == "<p>Game studio</p>" and saved["diagram"] == ""
+# the Network diagram section only ever holds draw.io diagrams: text sent to it is dropped
+assert post(f"/folder/{sec}/section/diagram", html='<p>notes</p><p><img data-drawio="1" src="/uploads/d.png" alt="x"></p>').get_json() == \
+    {"html": '<p><img data-drawio="1" src="/uploads/d.png" alt="x"></p>'}
 assert post(f"/folder/{sec}/section/nope", html="x").status_code == 404
 post("/who", name="0521nic")
 assert post(f"/folder/{sec}/section/people", html="x").status_code == 403
 assert b'class="pen"' not in c.get(f"/folder/{sec}").data and b"0521nic</li>" in c.get(f"/folder/{sec}").data
 old = '<h2>Background</h2><p>Imported.</p><h2>Network diagram</h2><p>d</p><h2>Key contacts and links</h2><p>Nic</p><h2>Files</h2><p>f</p>'
-assert km.overview_sections(old) == {"background": "<p>Imported.</p>", "diagram": "<p>d</p>", "people": "<p>Nic</p>",
-                                     "resources": "<h3>Files</h3><p>f</p>"}
+assert km.overview_sections(old) == {"background": "<p>Imported.</p>", "diagram": "", "people": "<p>Nic</p>",
+                                     "resources": "<h3>Files</h3><p>f</p>"}  # text in the diagram section is dropped
 
 # AAR: title + points (observation / reflection / recommendation); anyone adds, only admins correct,
 # nobody deletes (enforced by the database)
@@ -152,7 +155,7 @@ overview = lambda f: db.execute("SELECT p.html FROM pages p JOIN folders f ON f.
 rival, tik = overview("RivalBlocks"), overview("TikTubeYouTok")
 assert "RivalBlocks NV.pptx" in rival and "RivalBlocks NV" not in tik
 assert "NV Documentation (Ours).docx" in tik and "(Ours)" not in rival
-assert "network.drawio" in tik and "network.drawio" not in rival and "network v2.drawio" in rival and "network v2.drawio" in tik
+assert "network.drawio" in tik and "network.drawio" not in rival and "Diagram files" in tik and "network v2.drawio" in rival and "network v2.drawio" in tik
 assert "packetcapture-em1.pcap" in tik and "Feedback" not in tik + rival  # only the pcap comes from Archive
 assert "NV Documentation (Other Group).docx" in rival and "Emails" in rival
 link = lambda html_, name: re.search(r'href="([^"]+)">📎 ' + re.escape(name), html_).group(1)

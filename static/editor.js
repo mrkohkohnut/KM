@@ -281,11 +281,57 @@ if (pageHolder) {
   });
 }
 
-// Folder overview: each section's pen turns just that section into an editor, saved in place.
+// Folder overview, Network diagram: no text, just the draw.io diagram. The pen opens draw.io on the current
+// diagram (or a .drawio file attached to the folder, or a blank one) and saving puts the diagram in place.
+function chooseStart(body, files) {
+  return new Promise(resolve => {
+    const shown = body.innerHTML;
+    const box = document.createElement('div');
+    box.className = 'diagram-start';
+    box.innerHTML = '<p>Start from a diagram file attached to this folder, or draw a new one.</p><div class="inline"></div>';
+    const done = choice => { body.innerHTML = shown; resolve(choice); };
+    const add = (label, cls, choice) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = cls; b.textContent = label;
+      b.addEventListener('click', () => done(choice));
+      box.lastElementChild.append(b);
+    };
+    files.forEach(f => add(f.name, '', f.href));
+    add('Blank diagram', 'plain', '');
+    add('Cancel', 'plain', null);
+    body.replaceChildren(box);
+  });
+}
+
+async function editDiagram(section) {
+  const body = section.querySelector('.ov-body');
+  const current = [...body.querySelectorAll('img[data-drawio]')].map(i => i.getAttribute('src'));
+  let xml = '';
+  if (current.length) xml = await toDataUrl(current[0]);
+  else {
+    const files = [...new Map([...document.querySelectorAll('.overview a[href$=".drawio"]')]
+      .map(a => [a.getAttribute('href'), {href: a.getAttribute('href'), name: a.textContent.replace('📎', '').trim()}])).values()];
+    const start = files.length ? await chooseStart(body, files) : '';
+    if (start === null) return;
+    if (start) xml = await (await fetch(start)).text();
+  }
+  const url = await drawio(xml, section.dataset.folder);
+  if (!url) return;  // closed without saving
+  const urls = current.length ? [url, ...current.slice(1)] : [url];
+  const fd = new FormData();
+  fd.append('html', urls.map(u => `<p><img data-drawio="1" src="${esc(u)}" alt="Network diagram"></p>`).join(''));
+  const r = await fetch(section.dataset.save, {method: 'POST', body: fd});
+  if (!r.ok) return alert(r.status === 403 ? 'You no longer have edit rights for this folder.' : 'Saving failed (' + r.status + ').');
+  body.innerHTML = (await r.json()).html;
+  section.dataset.empty = '';
+}
+
+// Folder overview, other sections: the pen turns just that section into a block editor, saved in place.
 const EMPTY = '<p class="note">Nothing here yet.</p>';
 document.querySelectorAll('.ov-section[data-save]').forEach(section => {
   const pen = section.querySelector('.pen');
   const body = section.querySelector('.ov-body');
+  if (section.id === 'diagram') return pen.addEventListener('click', () => editDiagram(section));
   pen.addEventListener('click', () => {
     const shown = body.innerHTML;
     const holder = document.createElement('div');

@@ -91,7 +91,7 @@ def overview_sections(html):
     """{section key: html} from an overview. Older overviews without sections are split on their <h2> headings."""
     found = re.findall(r'<section data-section="(\w+)">\s*(?:<h2>.*?</h2>)?(.*?)</section>', html, re.S)
     if found:
-        return {k: dict(found).get(k, "").strip() for k in SECTIONS}
+        return tidy_diagram({k: dict(found).get(k, "").strip() for k in SECTIONS})
     out, key = dict.fromkeys(SECTIONS, ""), "background"
     for chunk in re.split(r"(<h2>.*?</h2>)", html, flags=re.S):
         heading = re.fullmatch(r"<h2>(.*?)</h2>", chunk, re.S)
@@ -103,12 +103,26 @@ def overview_sections(html):
                "people" if any(w in t for w in ("contact", "people", "done by", "team")) else "resources")
         if key == "resources" and t != "links to resources":
             out[key] += f"<h3>{heading.group(1)}</h3>"  # keep sub-headings such as Files or Artefacts
-    return {k: v.strip() for k, v in out.items()}
+    return tidy_diagram({k: v.strip() for k, v in out.items()})
+
+
+def diagram_only(html):
+    """Just the draw.io diagrams (PNG with the diagram inside) from some HTML."""
+    return "".join(f"<p>{img}</p>" for img in re.findall(r"<img\b[^>]*data-drawio[^>]*>", html))
+
+
+def tidy_diagram(sections):
+    """The Network diagram section holds only the draw.io diagram. .drawio files that older overviews kept
+    there move to Links to resources (the pen offers them as a starting point); any text there is dropped."""
+    files = re.findall(r'<p><a href="[^"]+\.drawio">.*?</p>', sections["diagram"], re.S)
+    if files:
+        sections["resources"] = (sections["resources"] + "\n<h3>Diagram files</h3>" + "".join(files)).strip()
+    sections["diagram"] = diagram_only(sections["diagram"])
+    return sections
 
 
 README_TEMPLATE = sections_html({
     "background": "<p>What this folder covers, who it is for and why it matters.</p>",
-    "diagram": "<p>Click the pen, then press / and choose Diagram to draw it here.</p>",
 })
 
 
@@ -339,7 +353,8 @@ def save_section(fid, key):
     require_edit(fid)
     readme = get_or_404("SELECT * FROM pages WHERE folder_id=? AND is_readme=1", fid)
     sections = overview_sections(readme["html"])
-    sections[key] = request.form.get("html", "").strip()
+    html = request.form.get("html", "").strip()
+    sections[key] = diagram_only(html) if key == "diagram" else html
     save_page(readme["id"], fid, "Overview", sections_html(sections))
     return {"html": sections[key]}
 

@@ -157,17 +157,16 @@ class Importer:
         self.log.append(f"    overview: {len(diagrams)} diagrams, {len(loose)} files")
         if row:
             return
-        diagram = "<p>To make a diagram editable, click the pen, double-click the file and save in draw.io.</p>" \
-            + "".join(self.file_block(p) for p in diagrams) if diagrams else \
-            "<p>Click the pen, then press / and choose Diagram to draw it here.</p>"
         resources = ""
         if made:
             resources += "<h3>Artefacts</h3><ul>" + "".join(f'<li><a href="/page/{pid}">{esc(t)}</a></li>' for t, pid in made) + "</ul>"
         if loose:
             resources += "<h3>Files</h3>" + "".join(self.file_block(p) for p in loose)
+        if diagrams:  # the Network diagram pen offers these as a starting point
+            resources += "<h3>Diagram files</h3>" + "".join(self.file_block(p) for p in diagrams)
         overview = km.sections_html({"background": f"<p>Imported from Google Drive on {datetime.now():%d %b %Y}. "
                                                    "Click the pen to describe the scenario.</p>",
-                                     "diagram": diagram, "resources": resources})
+                                     "resources": resources})
         km.write_page(self.c, None, fid, "Overview", overview, WHO, is_readme=1)
 
 

@@ -32,9 +32,9 @@
              {% if can_edit(folder.id) %}data-save="{{ url_for('save_section', fid=folder.id, key=key) }}"{% endif %}>
       <div class="ov-head">
         <h2>{{ title }}</h2>
-        {% if can_edit(folder.id) %}<button type="button" class="pen" title="Edit {{ title|lower }}" aria-label="Edit {{ title|lower }}">{{ icon('pencil') }}</button>{% endif %}
+        {% if can_edit(folder.id) %}<button type="button" class="pen" title="{{ 'Edit in draw.io' if key == 'diagram' else 'Edit ' ~ title|lower }}" aria-label="{{ 'Edit the network diagram in draw.io' if key == 'diagram' else 'Edit ' ~ title|lower }}">{{ icon('pencil') }}</button>{% endif %}
       </div>
-      <div class="ov-body">{{ sections[key]|safe if sections[key] else '<p class="note">Nothing here yet.</p>'|safe }}</div>
+      <div class="ov-body">{{ sections[key]|safe if sections[key] else ('<p class="note">' ~ ('No diagram yet.' ~ (' Click the pen to draw it in draw.io.' if can_edit(folder.id) else '') if key == 'diagram' else 'Nothing here yet.') ~ '</p>')|safe }}</div>
     </section>
     {% endfor %}
   </article>
