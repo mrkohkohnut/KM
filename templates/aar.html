@@ -1,26 +1,21 @@
-{% extends "base.html" %}{% block title %}AAR log{% endblock %}{% block layout %}duo{% endblock %}
+{% extends "base.html" %}
+{% from "_aar.html" import points_table %}
+{% from "_icons.html" import icon %}
+{% block title %}AAR log{% endblock %}{% block layout %}wide{% endblock %}
 {% block body %}
-<div class="center">
-  <h1 class="large">AAR log</h1>
-  <p class="sub">Entries are never deleted. Admins can correct an entry, and the original wording stays in its history.</p>
-  {% for e in entries %}
-  <article class="card aar">
-    <time>{{ e.created_at|when }}</time>
-    <h2><a href="{{ url_for('aar_entry', eid=e.id) }}">{{ e.title }}</a></h2>
-    <p class="byline">{{ e.author }}{% if e.edited_by %}, corrected by {{ e.edited_by }} on {{ e.edited_at|when }}{% endif %}</p>
-    <p class="body">{{ e.body }}</p>
-  </article>
-  {% else %}<div class="empty-card"><p>No entries yet. Add the first one.</p></div>{% endfor %}
+<div class="titlebar">
+  <div class="grow">
+    <h1 class="large">AAR log</h1>
+    <p class="sub">Entries are never deleted. Admins can correct an entry, and the original wording stays in its history.</p>
+  </div>
+  <a class="button" href="{{ url_for('aar_new') }}">{{ icon('plus') }}New AAR</a>
 </div>
-<aside class="right sticky">
-  <section class="card formcard">
-    <h2 class="cardtitle">New entry</h2>
-    <form method="post" class="stack">
-      <label>Title <input name="title" placeholder="Exercise 3, 21 Nov" required></label>
-      <label>Entry <textarea name="body" rows="8" placeholder="What was planned, what happened, what to do differently" required></textarea></label>
-      <button>Add entry</button>
-      <small>Saved as {{ g.user.name }}. Entries can't be deleted.</small>
-    </form>
-  </section>
-</aside>
+{% for e in entries %}
+<article class="card aar">
+  <time>{{ e.created_at|when }}</time>
+  <h2><a href="{{ url_for('aar_entry', eid=e.id) }}">{{ e.title }}</a></h2>
+  <p class="byline">{{ e.author }}{% if e.edited_by %}, corrected by {{ e.edited_by }} on {{ e.edited_at|when }}{% endif %}</p>
+  {{ points_table(e.body) }}
+</article>
+{% else %}<div class="empty-card"><p>No AARs yet.</p><a class="button" href="{{ url_for('aar_new') }}">{{ icon('plus') }}New AAR</a></div>{% endfor %}
 {% endblock %}

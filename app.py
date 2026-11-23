@@ -4,6 +4,7 @@ Run:     python app.py              (serves on http://0.0.0.0:8080)
 Backup:  python app.py backup D:\\km-backup
 """
 import html as htmllib
+import json
 import os
 import re
 import shutil
@@ -399,13 +400,18 @@ def upload():
     f = request.files.get("file")
     if not f or not f.filename:
         abort(400, "No file.")
-    name = secure_filename(f.filename) or "file"
+    return {"url": store(f.filename, f.save), "name": f.filename,
+            "image": Path(f.filename).suffix.lower() in IMAGES}
+
+
+def store(filename, write):
+    """Save a file under data/uploads/YYYY/MM; write(path) does the writing. Returns its URL."""
+    name = secure_filename(filename) or "file"
     sub = datetime.now().strftime("%Y/%m")
     (UPLOADS / sub).mkdir(parents=True, exist_ok=True)
     stored = f"{uuid.uuid4().hex[:8]}-{name}"
-    f.save(UPLOADS / sub / stored)
-    return {"url": f"/uploads/{sub}/{stored}", "name": f.filename,
-            "image": Path(name).suffix.lower() in IMAGES}
+    write(UPLOADS / sub / stored)
+    return f"/uploads/{sub}/{stored}"
 
 
 @app.route("/uploads/<path:path>")
@@ -415,19 +421,48 @@ def uploads(path):
 
 
 # ---------- AAR (add-only; admins may edit, nobody may delete) ----------
+# An entry is a title plus numbered points, each an observation, a reflection and a recommendation.
+# The points are stored as JSON in `body`; entries written before this format stay plain text.
 
-@app.route("/aar", methods=["GET", "POST"])
+AAR_FIELDS = ("observation", "reflection", "recommendation")
+
+
+def aar_points(body):
+    """The entry's points, or None for an old plain-text entry."""
+    try:
+        points = json.loads(body)
+    except ValueError:
+        return None
+    return points if isinstance(points, list) else None
+
+
+def points_from_form():
+    cols = [request.form.getlist(f) for f in AAR_FIELDS]
+    points = [dict(zip(AAR_FIELDS, (v.strip() for v in row))) for row in zip(*cols)]
+    return [p for p in points if any(p.values())]
+
+
+app.jinja_env.globals.update(aar_points=aar_points, AAR_FIELDS=AAR_FIELDS)
+
+
+@app.route("/aar")
 def aar():
-    if request.method == "POST":
-        title, body = request.form["title"].strip(), request.form["body"].strip()
-        if title and body:
-            db().execute("INSERT INTO aar_entries(title, body, author, created_at) VALUES (?,?,?,?)",
-                         (title, body, g.user["name"], now()))
-            db().commit()
-            return redirect(url_for("aar"))
-        flash("An AAR entry needs a title and a body.")
     entries = db().execute("SELECT * FROM aar_entries ORDER BY id DESC").fetchall()
     return render_template("aar.html", entries=entries)
+
+
+@app.route("/aar/new", methods=["GET", "POST"])
+def aar_new():
+    points = []
+    if request.method == "POST":
+        title, points = request.form.get("title", "").strip(), points_from_form()
+        if title and points:
+            eid = db().execute("INSERT INTO aar_entries(title, body, author, created_at) VALUES (?,?,?,?)",
+                               (title, json.dumps(points, ensure_ascii=False), g.user["name"], now())).lastrowid
+            db().commit()
+            return redirect(url_for("aar_entry", eid=eid))
+        flash("An AAR needs a title and at least one point.")
+    return render_template("aar_form.html", e=None, points=points)
 
 
 @app.route("/aar/<int:eid>", methods=["GET", "POST"])
@@ -435,13 +470,25 @@ def aar_entry(eid):
     e = get_or_404("SELECT * FROM aar_entries WHERE id=?", eid)
     if request.method == "POST":
         require_admin()
+        points = points_from_form()
+        if not points:
+            flash("An AAR needs at least one point.")
+            return redirect(url_for("aar_edit", eid=eid))
         db().execute("UPDATE aar_entries SET title=?, body=?, edited_by=?, edited_at=? WHERE id=?",
-                     (request.form["title"].strip() or e["title"], request.form["body"].strip() or e["body"],
+                     (request.form.get("title", "").strip() or e["title"], json.dumps(points, ensure_ascii=False),
                       g.user["name"], now(), eid))
         db().commit()
         return redirect(url_for("aar_entry", eid=eid))
     hist = db().execute("SELECT * FROM aar_history WHERE entry_id=? ORDER BY id DESC", (eid,)).fetchall()
     return render_template("aar_entry.html", e=e, hist=hist)
+
+
+@app.route("/aar/<int:eid>/edit")
+def aar_edit(eid):
+    require_admin()
+    e = get_or_404("SELECT * FROM aar_entries WHERE id=?", eid)
+    points = aar_points(e["body"]) or [{"observation": e["body"], "reflection": "", "recommendation": ""}]
+    return render_template("aar_form.html", e=e, points=points)
 
 
 @app.route("/links.json")
@@ -575,6 +622,9 @@ def backup_daily(dest):
 if __name__ == "__main__":
     if sys.argv[1:2] == ["backup"]:
         backup(sys.argv[2] if len(sys.argv) > 2 else BASE / "backup")
+    elif sys.argv[1:2] == ["import"]:
+        import importer
+        importer.main(sys.argv[2:])
     else:
         import logging
         import threading

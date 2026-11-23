@@ -6,6 +6,7 @@ services:
     volumes:
       - km-data:/app/data      # database + uploaded files (kept when the container is rebuilt)
       - ./backup:/backup       # daily backup as plain files; change to e.g. E:/km-backup for another drive
+      - ./import:/import       # put Google Drive downloads here, then: docker compose exec km python app.py import /import
     environment:
       KM_BACKUP: /backup
     restart: unless-stopped    # comes back after crashes and when Docker starts

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}{{ 'Correct ' ~ e.title if e else 'New AAR' }}{% endblock %}{% block layout %}wide{% endblock %}
+{% block crumbs %}<nav class="crumbs" aria-label="Breadcrumb"><a href="/aar">AAR log</a><span class="sep" aria-hidden="true">{{ icon('chev') }}</span><span aria-current="page">{{ 'Correct entry' if e else 'New AAR' }}</span></nav>{% endblock %}
+{% block body %}
+<form method="post" action="{{ url_for('aar_entry', eid=e.id) if e else url_for('aar_new') }}" class="stack">
+  <div class="titlebar">
+    <h1 class="grow">{{ 'Correct this AAR' if e else 'New AAR' }}</h1>
+    <a class="button plain" href="{{ url_for('aar_entry', eid=e.id) if e else url_for('aar') }}">Cancel</a>
+    <button>{{ 'Save correction' if e else 'Add AAR' }}</button>
+  </div>
+  <p class="sub">{% if e %}The current wording is kept under Earlier wording.{% else %}Saved as {{ g.user.name }}. AARs can't be deleted, so check it before adding.{% endif %}</p>
+  <label class="card titlecard">Title <input name="title" value="{{ e.title if e else request.form.get('title', '') }}" placeholder="NV training, batch 0521" required></label>
+  <div id="points">
+    {% for p in (points or [{}]) %}
+    <fieldset class="card point">
+      <legend>Point <span class="n">{{ loop.index }}</span></legend>
+      <div class="pointgrid">
+        {% for f in AAR_FIELDS %}
+        <label>{{ f|capitalize }}<textarea name="{{ f }}" rows="4" placeholder="{{ {'observation': 'What happened', 'reflection': 'Why it happened', 'recommendation': 'What to do next time'}[f] }}">{{ p[f] if p else '' }}</textarea></label>
+        {% endfor %}
+      </div>
+    </fieldset>
+    {% endfor %}
+  </div>
+  <button type="button" class="plain" id="add-point">{{ icon('plus') }}Add another point</button>
+</form>
+{% endblock %}

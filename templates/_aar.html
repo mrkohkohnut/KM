@@ -1,0 +1,19 @@
+{# An AAR's points as the Observation / Reflection / Recommendation table from the slides #}
+{% macro points_table(body) -%}
+{% set points = aar_points(body) %}
+{% if points is none %}
+<p class="body">{{ body }}</p>
+{% else %}
+<div class="aartable" role="table">
+  <div class="aarrow head" role="row"><span role="columnheader">No.</span><span role="columnheader">Observation</span><span role="columnheader">Reflection</span><span role="columnheader">Recommendation</span></div>
+  {% for p in points %}
+  <div class="aarrow" role="row">
+    <span class="sn" role="cell">{{ loop.index }}</span>
+    <span role="cell"><b class="label">Observation</b>{{ p.observation }}</span>
+    <span role="cell"><b class="label">Reflection</b>{{ p.reflection }}</span>
+    <span role="cell"><b class="label">Recommendation</b>{{ p.recommendation }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{%- endmacro %}

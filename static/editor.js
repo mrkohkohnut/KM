@@ -26,7 +26,8 @@ async function toDataUrl(src) {
 }
 
 // draw.io embed: the diagram is saved as a PNG with the editable diagram data inside it.
-function openDrawio(ed, img) {
+// img: an existing diagram to edit. xml + replace: an imported .drawio file and the link to swap for the diagram.
+function openDrawio(ed, img, xml = '', replace = null) {
   const frame = document.createElement('iframe');
   frame.className = 'drawio-frame';
   frame.src = DRAWIO;
@@ -37,14 +38,14 @@ function openDrawio(ed, img) {
     if (e.source !== frame.contentWindow || typeof e.data !== 'string') return;
     let m; try { m = JSON.parse(e.data); } catch { return; }
     if (m.event === 'init') {
-      send({action: 'load', autosave: 0, xml: img ? await toDataUrl(img.src) : ''});
+      send({action: 'load', autosave: 0, xml: img ? await toDataUrl(img.src) : xml});
     } else if (m.event === 'save') {
       send({action: 'export', format: 'xmlpng', spinKey: 'saving'});
     } else if (m.event === 'export') {
       try {
         const u = await upload(dataUrlToFile(m.data, 'diagram.png'));
         if (img) { ed.dom.setAttribs(img, {src: u.url, 'data-mce-src': u.url}); ed.undoManager.add(); ed.setDirty(true); }
-        else ed.insertContent(`<img data-drawio="1" src="${u.url}" alt="diagram">`);
+        else { if (replace) ed.selection.select(replace); ed.insertContent(`<img data-drawio="1" src="${u.url}" alt="diagram">`); }
         close();
       } catch (err) { alert('Saving diagram failed: ' + err.message); }
     } else if (m.event === 'exit') {
@@ -74,7 +75,11 @@ tinymce.init({
   link_target_list: false,
   setup(ed) {
     ed.ui.registry.addButton('drawio', {text: 'Diagram', tooltip: 'Insert draw.io diagram', onAction: () => openDrawio(ed, null)});
-    ed.on('dblclick', e => { if (e.target.nodeName === 'IMG' && e.target.hasAttribute('data-drawio')) openDrawio(ed, e.target); });
+    ed.on('dblclick', async e => {
+      if (e.target.nodeName === 'IMG' && e.target.hasAttribute('data-drawio')) return openDrawio(ed, e.target);
+      const link = e.target.closest('a[href$=".drawio"]');  // an imported .drawio file
+      if (link) { e.preventDefault(); openDrawio(ed, null, await (await fetch(link.getAttribute('href'))).text(), link); }
+    });
     // Dropped files of any type: upload to PC1, then insert as an image or a download link.
     ed.on('drop', async e => {
       const files = [...(e.dataTransfer?.files || [])];

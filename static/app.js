@@ -16,3 +16,13 @@ if (toc) {
   });
   document.getElementById('toc-box').hidden = heads.length < 2;
 }
+
+// AAR form: "Add another point" copies the last point with empty boxes.
+document.getElementById('add-point')?.addEventListener('click', () => {
+  const list = document.getElementById('points');
+  const copy = list.lastElementChild.cloneNode(true);
+  copy.querySelectorAll('textarea').forEach(t => { t.value = ''; });
+  copy.querySelector('.n').textContent = list.children.length + 1;
+  list.append(copy);
+  copy.querySelector('textarea').focus();
+});

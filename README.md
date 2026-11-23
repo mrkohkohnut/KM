@@ -30,6 +30,23 @@ The PCs' firewalls are off, so no rule is needed. If you turn the firewall on, a
 - **Pages:** drag files into the editor and they upload to PC1. The **Diagram** button opens draw.io, and double-clicking a diagram edits it. Every save is kept in **History** and can be restored.
 - **AAR:** anyone can add an entry. Only admins can edit, and every earlier version is kept. Nobody can delete an entry, because the database itself refuses.
 
+## Importing a Google Drive folder
+
+1. In Google Drive, right-click the folder and choose **Download**. Drive gives you one or more `.zip` files, with Google Docs saved as Word files and Google Slides as PowerPoint files.
+2. Put the zip(s) in the `import` folder next to `docker-compose.yml` (e.g. `C:\km\import`). Don't unzip them.
+3. Check what will be imported (this changes nothing):
+   ```
+   docker compose exec km python app.py import /import --dry-run
+   ```
+4. Run it for real:
+   ```
+   docker compose exec km python app.py import /import
+   ```
+
+Each Drive folder becomes a KM folder with an overview. Word and PowerPoint files become pages, and other files are attached (images, audio and short text files show on the page). The `Archive` subfolder is skipped; add `--skip "Other folder"` to skip more. The AAR table in the deck named by `--aar-from` (default `NV Slides 3.0 Final Final`) becomes an AAR entry. AAR entries can never be deleted, so check the dry run first. Running the import again skips anything already imported.
+
+`.drawio` files are listed under each overview's Network diagram. To make one editable, choose **Edit overview**, double-click the file, and save in draw.io.
+
 ## Where things are saved (on PC1)
 
 The database and uploaded files live in the Docker volume `km-data`, which is kept when the container is rebuilt:

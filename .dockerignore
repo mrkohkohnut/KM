@@ -2,3 +2,4 @@ data
 backup
 .git
 __pycache__
+import

@@ -1,38 +1,29 @@
-{% extends "base.html" %}{% block title %}{{ e.title }}{% endblock %}{% block layout %}duo{% endblock %}
-{% block crumbs %}{% from "_icons.html" import icon %}<nav class="crumbs" aria-label="Breadcrumb"><a href="/aar">AAR log</a><span class="sep" aria-hidden="true">{{ icon('chev') }}</span><span aria-current="page">{{ e.title }}</span></nav>{% endblock %}
+{% extends "base.html" %}
+{% from "_aar.html" import points_table %}
+{% from "_icons.html" import icon %}
+{% block title %}{{ e.title }}{% endblock %}{% block layout %}wide{% endblock %}
+{% block crumbs %}<nav class="crumbs" aria-label="Breadcrumb"><a href="/aar">AAR log</a><span class="sep" aria-hidden="true">{{ icon('chev') }}</span><span aria-current="page">{{ e.title }}</span></nav>{% endblock %}
 {% block body %}
-<div class="center">
-  <article class="card aar">
-    <time>{{ e.created_at|when }}</time>
-    <h1>{{ e.title }}</h1>
-    <p class="byline">Written by {{ e.author }}{% if e.edited_by %}, corrected by {{ e.edited_by }} on {{ e.edited_at|when }}{% endif %}</p>
-    <p class="body">{{ e.body }}</p>
-  </article>
-  {% if hist %}
-  <h2 class="section">Earlier wording</h2>
-  {% for h in hist %}
-  <article class="card aar old">
-    <time>{{ h.written_at|when }}</time>
-    <h2>{{ h.title }}</h2>
-    <p class="byline">By {{ h.written_by }}, replaced {{ h.replaced_at|when }}</p>
-    <p class="body">{{ h.body }}</p>
-  </article>
-  {% endfor %}
-  {% endif %}
-</div>
-<aside class="right">
-  {% if is_admin() %}
-  <section class="card formcard">
-    <h2 class="cardtitle">Correct this entry</h2>
-    <form method="post" class="stack">
-      <label>Title <input name="title" value="{{ e.title }}" required></label>
-      <label>Entry <textarea name="body" rows="10" required>{{ e.body }}</textarea></label>
-      <button>Save correction</button>
-      <small>The current wording is kept under Earlier wording.</small>
-    </form>
-  </section>
-  {% else %}
-  <p class="note">Entries can't be deleted. Only admins can correct them.</p>
-  {% endif %}
-</aside>
+<article class="card aar">
+  <div class="titlebar">
+    <div class="grow">
+      <time>{{ e.created_at|when }}</time>
+      <h1>{{ e.title }}</h1>
+      <p class="byline">Written by {{ e.author }}{% if e.edited_by %}, corrected by {{ e.edited_by }} on {{ e.edited_at|when }}{% endif %}</p>
+    </div>
+    {% if is_admin() %}<a class="button tinted-btn" href="{{ url_for('aar_edit', eid=e.id) }}">{{ icon('pencil') }}Correct</a>{% endif %}
+  </div>
+  {{ points_table(e.body) }}
+</article>
+{% if hist %}
+<h2 class="section">Earlier wording</h2>
+{% for h in hist %}
+<article class="card aar old">
+  <time>{{ h.written_at|when }}</time>
+  <h2>{{ h.title }}</h2>
+  <p class="byline">By {{ h.written_by }}, replaced {{ h.replaced_at|when }}</p>
+  {{ points_table(h.body) }}
+</article>
+{% endfor %}
+{% endif %}
 {% endblock %}
