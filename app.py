@@ -482,6 +482,10 @@ if __name__ == "__main__":
     if sys.argv[1:2] == ["backup"]:
         backup(sys.argv[2] if len(sys.argv) > 2 else BASE / "backup")
     else:
+        import logging
         from waitress import serve
+        if sys.stdout is None:  # started by the scheduled task (pythonw): no console, so log to a file
+            sys.stdout = sys.stderr = open(DATA / "km.log", "a", buffering=1)
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
         print(f"KM running on http://0.0.0.0:{PORT}  (other PCs: http://<this PC's IP>:{PORT})")
         serve(app, host="0.0.0.0", port=PORT, threads=8)

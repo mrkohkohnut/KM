@@ -10,11 +10,13 @@ A small knowledge base for training batches. It runs on one Windows PC, and the 
    ```
    powershell -ExecutionPolicy Bypass -File setup-windows.ps1 -BackupDir "E:\km-backup"
    ```
-   This installs Flask and Waitress, opens port 8080 to the local network, starts KM at boot, schedules a 02:00 backup and turns off sleep.
+   This installs Flask and Waitress, starts KM at boot, schedules a 02:00 backup and turns off sleep.
 4. In the router, give PC1 a fixed IP (a DHCP reservation).
 5. On any PC, open `http://<PC1's IP>:8080`. The first visit asks you to create the admin and its PIN.
 
-To run it by hand and see errors, use `python app.py`.
+To run it by hand and see errors, use `python app.py`. When it runs in the background, errors go to `data\km.log`.
+
+The script adds no firewall rule because the PCs' firewalls are off. If you turn the firewall on later, allow inbound TCP 8080.
 
 ## How it's used
 
