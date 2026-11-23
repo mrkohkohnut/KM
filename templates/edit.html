@@ -20,12 +20,5 @@
 </form>
 {% endblock %}
 {% block scripts %}
-{% for src in ['@editorjs/editorjs@2.31.7/dist/editorjs.umd.js', '@editorjs/header@2.8.9/dist/header.umd.js',
-                '@editorjs/list@2.0.9/dist/editorjs-list.umd.js', '@editorjs/image@2.10.3/dist/image.umd.js',
-                '@editorjs/attaches@1.3.2/dist/attaches.umd.js', '@editorjs/table@2.4.6/dist/table.umd.js',
-                '@editorjs/code@2.9.4/dist/code.umd.js', '@editorjs/quote@2.7.6/dist/quote.umd.js',
-                '@editorjs/delimiter@1.4.2/dist/delimiter.umd.js', 'editorjs-drag-drop@1.1.16/dist/bundle.js'] %}
-<script src="https://cdn.jsdelivr.net/npm/{{ src }}"></script>
-{% endfor %}
-<script src="{{ url_for('static', filename='editor.js') }}"></script>
+{% include "_editor_scripts.html" %}
 {% endblock %}

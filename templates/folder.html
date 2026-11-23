@@ -22,15 +22,21 @@
     {% if can_edit(folder.id) %}<a class="button" href="{{ url_for('edit', fid=folder.id) }}">{{ icon('plus') }}New page</a>{% endif %}
   </div>
 
-  <article class="card content">
+  <article class="card content overview">
     <div class="cardhead">
       <h2>{{ icon('info') }}Overview</h2>
-      <div class="inline">
-        <a class="button plain" href="{{ url_for('history', pid=readme.id) }}">History</a>
-        {% if can_edit(folder.id) %}<a class="button tinted-btn" href="{{ url_for('edit', pid=readme.id) }}">{{ icon('pencil') }}Edit overview</a>{% endif %}
-      </div>
+      <a class="button plain" href="{{ url_for('history', pid=readme.id) }}">History</a>
     </div>
-    {{ readme.html|safe }}
+    {% for key, title in SECTIONS.items() %}
+    <section class="ov-section" id="{{ key }}" data-folder="{{ folder.id }}" data-empty="{{ '' if sections[key] else '1' }}"
+             {% if can_edit(folder.id) %}data-save="{{ url_for('save_section', fid=folder.id, key=key) }}"{% endif %}>
+      <div class="ov-head">
+        <h2>{{ title }}</h2>
+        {% if can_edit(folder.id) %}<button type="button" class="pen" title="Edit {{ title|lower }}" aria-label="Edit {{ title|lower }}">{{ icon('pencil') }}</button>{% endif %}
+      </div>
+      <div class="ov-body">{{ sections[key]|safe if sections[key] else '<p class="note">Nothing here yet.</p>'|safe }}</div>
+    </section>
+    {% endfor %}
   </article>
 
   <h2 class="section">Pages</h2>
@@ -75,3 +81,4 @@
   {% endif %}
 </aside>
 {% endblock %}
+{% block scripts %}{% if can_edit(folder.id) %}{% include "_editor_scripts.html" %}{% endif %}{% endblock %}

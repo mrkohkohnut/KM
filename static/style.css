@@ -303,3 +303,22 @@ h1.large + .card { margin-top: 18px; }
 .content ul.checklist { list-style: none; padding-left: 4px; }
 .content ul.checklist li::before { content: "☐"; margin-right: 8px; color: var(--sub); }
 .content ul.checklist li[data-checked="true"]::before { content: "☑"; color: var(--accent); }
+
+/* folder overview: four sections, each with its own pen that edits it in place */
+.overview .ov-section { padding: 14px 0 6px; }
+.overview .ov-section + .ov-section { border-top: 1px solid var(--sep); }
+.ov-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.content .ov-head h2 { margin: 0; font-size: 20px; }
+.ov-body > :first-child { margin-top: .5em; }
+.pen { width: 32px; height: 32px; padding: 0; border-radius: 50%; background: var(--fill); color: var(--accent); flex: none; opacity: .75; }
+.pen:hover, .pen:focus-visible, .ov-section:hover .pen { opacity: 1; }
+.pen .ic { width: 16px; height: 16px; }
+.ov-section.editing { background: var(--accent-soft); border-radius: 14px; padding: 14px 14px 10px; margin: 6px -14px; border-top-color: transparent; }
+.ov-section.editing + .ov-section { border-top-color: transparent; }
+.section-editor { background: var(--card); border-radius: 10px; padding: 10px 10px 10px 52px; margin-top: 10px; min-height: 80px; }
+.section-editor .ce-block__content, .section-editor .ce-toolbar__content { max-width: none; }
+.section-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+@media (max-width: 760px) { .section-editor { padding-left: 12px; } }
+[hidden] { display: none !important; }
+.section-editor .codex-editor__redactor { padding-bottom: 24px !important; }
+#blocks [contenteditable]:focus-visible, .section-editor [contenteditable]:focus-visible { outline: none; box-shadow: none; }

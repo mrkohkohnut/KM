@@ -157,19 +157,18 @@ class Importer:
         self.log.append(f"    overview: {len(diagrams)} diagrams, {len(loose)} files")
         if row:
             return
-        overview = [f"<h2>Background</h2><p>Imported from Google Drive on {datetime.now():%d %b %Y}. "
-                    "Edit this overview to describe the scenario.</p>", "<h2>Network diagram</h2>"]
-        if diagrams:
-            overview.append("<p>To make a diagram editable, choose Edit overview, double-click the file and save in draw.io.</p>")
-            overview += [self.file_block(p) for p in diagrams]
-        else:
-            overview.append("<p>Choose Edit overview, then Diagram in the toolbar to draw it here.</p>")
+        diagram = "<p>To make a diagram editable, click the pen, double-click the file and save in draw.io.</p>" \
+            + "".join(self.file_block(p) for p in diagrams) if diagrams else \
+            "<p>Click the pen, then press / and choose Diagram to draw it here.</p>"
+        resources = ""
         if made:
-            overview.append("<h2>Artefacts</h2><ul>" + "".join(f'<li><a href="/page/{pid}">{esc(t)}</a></li>'
-                                                                 for t, pid in made) + "</ul>")
+            resources += "<h3>Artefacts</h3><ul>" + "".join(f'<li><a href="/page/{pid}">{esc(t)}</a></li>' for t, pid in made) + "</ul>"
         if loose:
-            overview.append("<h2>Files</h2>" + "".join(self.file_block(p) for p in loose))
-        km.write_page(self.c, None, fid, "Overview", "\n".join(overview), WHO, is_readme=1)
+            resources += "<h3>Files</h3>" + "".join(self.file_block(p) for p in loose)
+        overview = km.sections_html({"background": f"<p>Imported from Google Drive on {datetime.now():%d %b %Y}. "
+                                                   "Click the pen to describe the scenario.</p>",
+                                     "diagram": diagram, "resources": resources})
+        km.write_page(self.c, None, fid, "Overview", overview, WHO, is_readme=1)
 
 
 def unpack(sources, tmp):

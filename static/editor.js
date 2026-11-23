@@ -1,11 +1,8 @@
 // Notion-style block editor (Editor.js). Every paragraph, heading, list, image, file, table and diagram is its
 // own block: drag the ⋮⋮ handle to move it, press "/" or "+" for a new one, drop files anywhere to add them.
 // Pages are still stored as HTML, so viewing, search and history don't change:
-// htmlToBlocks() runs when the editor opens and blocksToHtml() when the page is saved.
-const holder = document.getElementById('blocks');
-const form = holder.closest('form');
-const field = form.querySelector('[name=html]');
-const folderId = holder.dataset.folder;
+// htmlToBlocks() runs when an editor opens and blocksToHtml() when it saves.
+// Used two ways (bottom of this file): the full page editor, and each overview section on a folder page.
 const DRAWIO = 'https://embed.diagrams.net/?embed=1&proto=json&spin=1&noSaveBtn=1&saveAndExit=1';
 const IMAGE = /\.(png|jpe?g|gif|webp)$/i;
 const AUDIO = /\.(wav|mp3|ogg|m4a)$/i;
@@ -18,7 +15,7 @@ const ICON = {
 // ---------- uploads ----------
 
 // Every file goes to PC1 (POST /upload), which saves it under data/uploads and returns its URL.
-async function upload(file) {
+async function upload(file, folderId) {
   const fd = new FormData();
   fd.append('file', file, file.name || 'pasted.png');
   fd.append('folder_id', folderId);
@@ -45,7 +42,7 @@ async function toDataUrl(src) {
 
 // Opens draw.io full screen with `xml` (a diagram PNG as a data URL, .drawio XML, or '' for a new one).
 // Resolves with the uploaded PNG's URL (the PNG keeps the editable diagram inside it), or null if closed unsaved.
-function drawio(xml) {
+function drawio(xml, folderId) {
   return new Promise(resolve => {
     const frame = document.createElement('iframe');
     frame.className = 'drawio-frame';
@@ -59,7 +56,7 @@ function drawio(xml) {
       if (m.event === 'init') send({action: 'load', autosave: 0, xml});
       else if (m.event === 'save') send({action: 'export', format: 'xmlpng', spinKey: 'saving'});
       else if (m.event === 'export') {
-        try { done((await upload(dataUrlToFile(m.data, 'diagram.png'))).url); }
+        try { done((await upload(dataUrlToFile(m.data, 'diagram.png'), folderId)).url); }
         catch (err) { alert('Saving the diagram failed: ' + err.message); }
       } else if (m.event === 'exit') done(null);
     }
@@ -71,7 +68,7 @@ function drawio(xml) {
 
 class Diagram {
   static get toolbox() { return {title: 'Diagram', icon: ICON.diagram}; }
-  constructor({data, api, block}) { this.data = data || {}; this.api = api; this.block = block; }
+  constructor({data, api, block, config}) { this.data = data || {}; this.api = api; this.block = block; this.folderId = config.folderId; }
   render() {
     this.el = document.createElement('div');
     this.el.className = 'diagram-block';
@@ -86,7 +83,7 @@ class Diagram {
     this.el.querySelector('button')?.addEventListener('click', async () => this.edit(await toDataUrl(this.data.url)));
   }
   async edit(xml) {
-    const url = await drawio(xml);
+    const url = await drawio(xml, this.folderId);
     if (url) { this.data.url = url; this.draw(); this.block?.dispatchChange(); }
     else if (!this.data.url) this.api.blocks.delete(this.api.blocks.getBlockIndex(this.block.id));  // closed without saving
   }
@@ -213,61 +210,111 @@ const blocksToHtml = blocks => blocks.map(b => RENDER[b.type]?.(b.data) ?? '').j
 
 // ---------- the editor ----------
 
-const editor = new EditorJS({
-  holder,
-  placeholder: 'Type here. Press / for headings, lists, images, files, diagrams and more.',
-  data: {blocks: htmlToBlocks(field.value)},
-  tools: {
-    header: {class: Header, inlineToolbar: true, config: {levels: [2, 3, 4], defaultLevel: 2}},
-    list: {class: EditorjsList, inlineToolbar: true, config: {defaultStyle: 'unordered'}},
-    image: {class: ImageTool, config: {uploader: {
-      uploadByFile: async file => ({success: 1, file: {url: (await upload(file)).url}}),
-      uploadByUrl: async url => ({success: 1, file: {url}}),
-    }}},
-    attaches: {class: AttachesTool, config: {buttonText: 'Choose a file to attach', uploader: {
-      uploadByFile: async file => ({success: 1, file: fileData((await upload(file)).url, file.name, file.size)}),
-    }}},
-    diagram: Diagram,
-    pagelink: PageLink,
-    table: {class: Table, inlineToolbar: true, config: {withHeadings: true}},
-    quote: {class: Quote, inlineToolbar: true},
-    code: CodeTool,
-    delimiter: Delimiter,
-  },
-  onReady: () => new DragDrop(editor),  // drag a block by its ⋮⋮ handle to move it
-});
+// Turns `holder` into a block editor holding `html`. Returns {html(): Promise<string>, destroy()}.
+function createEditor(holder, html, folderId) {
+  const editor = new EditorJS({
+    holder,
+    placeholder: 'Type here. Press / for headings, lists, images, files, diagrams and more.',
+    data: {blocks: htmlToBlocks(html)},
+    tools: {
+      header: {class: Header, inlineToolbar: true, config: {levels: [2, 3, 4], defaultLevel: 2}},
+      list: {class: EditorjsList, inlineToolbar: true, config: {defaultStyle: 'unordered'}},
+      image: {class: ImageTool, config: {uploader: {
+        uploadByFile: async file => ({success: 1, file: {url: (await upload(file, folderId)).url}}),
+        uploadByUrl: async url => ({success: 1, file: {url}}),
+      }}},
+      attaches: {class: AttachesTool, config: {buttonText: 'Choose a file to attach', uploader: {
+        uploadByFile: async file => ({success: 1, file: fileData((await upload(file, folderId)).url, file.name, file.size)}),
+      }}},
+      diagram: {class: Diagram, config: {folderId}},
+      pagelink: PageLink,
+      table: {class: Table, inlineToolbar: true, config: {withHeadings: true}},
+      quote: {class: Quote, inlineToolbar: true},
+      code: CodeTool,
+      delimiter: Delimiter,
+    },
+    onReady: () => new DragDrop(editor),  // drag a block by its ⋮⋮ handle to move it
+  });
 
-// Files dropped from the computer become image or file blocks where they land.
-holder.addEventListener('drop', async e => {
-  const files = [...(e.dataTransfer?.files || [])];
-  if (!files.length) return;  // a block being moved: leave it to the drag-and-drop plugin
-  e.preventDefault();
-  e.stopPropagation();
-  const target = e.target.closest('.ce-block');
-  let index = target ? [...holder.querySelectorAll('.ce-block')].indexOf(target) + 1 : editor.blocks.getBlocksCount();
-  for (const f of files) {
-    try {
-      const u = await upload(f);
-      if (IMAGE.test(f.name)) editor.blocks.insert('image', {file: {url: u.url}, caption: ''}, {}, index++, false);
-      else editor.blocks.insert('attaches', {file: fileData(u.url, f.name, f.size), title: f.name}, {}, index++, false);
-    } catch (err) {
-      alert(`Uploading ${f.name} failed: ${err.message}`);
+  // Files dropped from the computer become image or file blocks where they land.
+  holder.addEventListener('drop', async e => {
+    const files = [...(e.dataTransfer?.files || [])];
+    if (!files.length) return;  // a block being moved: leave it to the drag-and-drop plugin
+    e.preventDefault();
+    e.stopPropagation();
+    const target = e.target.closest('.ce-block');
+    let index = target ? [...holder.querySelectorAll('.ce-block')].indexOf(target) + 1 : editor.blocks.getBlocksCount();
+    for (const f of files) {
+      try {
+        const u = await upload(f, folderId);
+        if (IMAGE.test(f.name)) editor.blocks.insert('image', {file: {url: u.url}, caption: ''}, {}, index++, false);
+        else editor.blocks.insert('attaches', {file: fileData(u.url, f.name, f.size), title: f.name}, {}, index++, false);
+      } catch (err) {
+        alert(`Uploading ${f.name} failed: ${err.message}`);
+      }
     }
-  }
-}, true);
+  }, true);
 
-// Double-click an attached .drawio file (e.g. from the Drive import) to turn it into an editable diagram block.
-holder.addEventListener('dblclick', async e => {
-  const block = e.target.closest('.ce-block');
-  const link = block?.querySelector('a[href$=".drawio"]');
-  if (!link) return;
-  e.preventDefault();
-  const url = await drawio(await (await fetch(link.getAttribute('href'))).text());
-  if (url) editor.blocks.insert('diagram', {url}, {}, [...holder.querySelectorAll('.ce-block')].indexOf(block), false, true);
-});
+  // Double-click an attached .drawio file (e.g. from the Drive import) to turn it into an editable diagram block.
+  holder.addEventListener('dblclick', async e => {
+    const block = e.target.closest('.ce-block');
+    const link = block?.querySelector('a[href$=".drawio"]');
+    if (!link) return;
+    e.preventDefault();
+    const url = await drawio(await (await fetch(link.getAttribute('href'))).text(), folderId);
+    if (url) editor.blocks.insert('diagram', {url}, {}, [...holder.querySelectorAll('.ce-block')].indexOf(block), false, true);
+  });
 
-form.addEventListener('submit', async e => {
-  e.preventDefault();
-  field.value = blocksToHtml((await editor.save()).blocks);
-  form.submit();  // not requestSubmit(): that is ignored while this submit event is still being handled
+  return {html: async () => blocksToHtml((await editor.save()).blocks), destroy: () => editor.destroy()};
+}
+
+// Full page editor: the page's HTML sits in a hidden textarea and is swapped for the blocks' HTML on save.
+const pageHolder = document.getElementById('blocks');
+if (pageHolder) {
+  const form = pageHolder.closest('form');
+  const field = form.querySelector('[name=html]');
+  const ed = createEditor(pageHolder, field.value, pageHolder.dataset.folder);
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    field.value = await ed.html();
+    form.submit();  // not requestSubmit(): that is ignored while this submit event is still being handled
+  });
+}
+
+// Folder overview: each section's pen turns just that section into an editor, saved in place.
+const EMPTY = '<p class="note">Nothing here yet.</p>';
+document.querySelectorAll('.ov-section[data-save]').forEach(section => {
+  const pen = section.querySelector('.pen');
+  const body = section.querySelector('.ov-body');
+  pen.addEventListener('click', () => {
+    const shown = body.innerHTML;
+    const holder = document.createElement('div');
+    holder.className = 'section-editor';
+    const bar = document.createElement('div');
+    bar.className = 'section-actions';
+    bar.innerHTML = '<button type="button" class="plain">Cancel</button><button type="button">Save</button>';
+    body.replaceChildren(holder);
+    body.after(bar);
+    section.classList.add('editing');
+    pen.hidden = true;
+    const ed = createEditor(holder, section.dataset.empty ? '' : shown, section.dataset.folder);
+    const close = html => {
+      ed.destroy();
+      bar.remove();
+      body.innerHTML = html || EMPTY;
+      section.dataset.empty = html ? '' : '1';
+      section.classList.remove('editing');
+      pen.hidden = false;
+    };
+    const [cancel, save] = bar.querySelectorAll('button');
+    cancel.addEventListener('click', () => close(section.dataset.empty ? '' : shown));
+    save.addEventListener('click', async () => {
+      save.disabled = true;
+      const fd = new FormData();
+      fd.append('html', await ed.html());
+      const r = await fetch(section.dataset.save, {method: 'POST', body: fd});
+      if (!r.ok) { save.disabled = false; return alert(r.status === 403 ? 'You no longer have edit rights for this folder.' : 'Saving failed (' + r.status + ').'); }
+      close((await r.json()).html);
+    });
+  });
 });

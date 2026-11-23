@@ -69,6 +69,26 @@ assert post(f"/folder/{old}/delete").status_code == 302
 assert c.get(f"/folder/{old}").status_code == 404 and b"Old page" not in c.get("/search?q=zebra").data
 assert not sqlite3.connect(km.DB_PATH).execute("SELECT 1 FROM pages WHERE folder_id=? UNION SELECT 1 FROM perms WHERE folder_id=?", (old, old)).fetchone()
 
+# overview sections: each is saved on its own from the folder page, leaving the others as they were
+post("/who", name="admin", pin="1234")
+post("/folders", name="Sections")
+sec = sqlite3.connect(km.DB_PATH).execute("SELECT id FROM folders WHERE name='Sections'").fetchone()[0]
+page_html = c.get(f"/folder/{sec}").data
+assert page_html.count(b'class="pen"') == 4 and b"Done by" in page_html and b"Links to resources" in page_html
+r = post(f"/folder/{sec}/section/people", html="<ul><li>0521nic</li></ul>")
+assert r.get_json() == {"html": "<ul><li>0521nic</li></ul>"}
+post(f"/folder/{sec}/section/background", html="<p>Game studio</p>")
+saved = km.overview_sections(sqlite3.connect(km.DB_PATH).execute(
+    "SELECT html FROM pages WHERE folder_id=? AND is_readme=1", (sec,)).fetchone()[0])
+assert saved["people"] == "<ul><li>0521nic</li></ul>" and saved["background"] == "<p>Game studio</p>" and "Diagram" in saved["diagram"]
+assert post(f"/folder/{sec}/section/nope", html="x").status_code == 404
+post("/who", name="0521nic")
+assert post(f"/folder/{sec}/section/people", html="x").status_code == 403
+assert b'class="pen"' not in c.get(f"/folder/{sec}").data and b"0521nic</li>" in c.get(f"/folder/{sec}").data
+old = '<h2>Background</h2><p>Imported.</p><h2>Network diagram</h2><p>d</p><h2>Key contacts and links</h2><p>Nic</p><h2>Files</h2><p>f</p>'
+assert km.overview_sections(old) == {"background": "<p>Imported.</p>", "diagram": "<p>d</p>", "people": "<p>Nic</p>",
+                                     "resources": "<h3>Files</h3><p>f</p>"}
+
 # AAR: title + points (observation / reflection / recommendation); anyone adds, only admins correct,
 # nobody deletes (enforced by the database)
 post("/who", name="0521nic")

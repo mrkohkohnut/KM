@@ -78,12 +78,38 @@ def connect():
     return c
 
 
-README_TEMPLATE = """<h2>Background</h2>
-<p>What this folder covers, who it is for and why it matters.</p>
-<h2>Network diagram</h2>
-<p>Choose Edit overview, then Diagram in the toolbar to draw it here.</p>
-<h2>Key contacts and links</h2>
-<ul><li>Add people, documents and links to other pages here.</li></ul>"""
+# A folder's overview is one page made of these sections, each edited on its own from the folder page.
+SECTIONS = {"background": "Background", "diagram": "Network diagram", "people": "Done by", "resources": "Links to resources"}
+
+
+def sections_html(sections):
+    return "\n".join(f'<section data-section="{k}"><h2>{title}</h2>\n{sections.get(k, "")}\n</section>'
+                     for k, title in SECTIONS.items())
+
+
+def overview_sections(html):
+    """{section key: html} from an overview. Older overviews without sections are split on their <h2> headings."""
+    found = re.findall(r'<section data-section="(\w+)">\s*(?:<h2>.*?</h2>)?(.*?)</section>', html, re.S)
+    if found:
+        return {k: dict(found).get(k, "").strip() for k in SECTIONS}
+    out, key = dict.fromkeys(SECTIONS, ""), "background"
+    for chunk in re.split(r"(<h2>.*?</h2>)", html, flags=re.S):
+        heading = re.fullmatch(r"<h2>(.*?)</h2>", chunk, re.S)
+        if not heading:
+            out[key] += chunk
+            continue
+        t = re.sub(r"<[^>]+>", "", heading.group(1)).strip().lower()
+        key = ("background" if "background" in t else "diagram" if "diagram" in t else
+               "people" if any(w in t for w in ("contact", "people", "done by", "team")) else "resources")
+        if key == "resources" and t != "links to resources":
+            out[key] += f"<h3>{heading.group(1)}</h3>"  # keep sub-headings such as Files or Artefacts
+    return {k: v.strip() for k, v in out.items()}
+
+
+README_TEMPLATE = sections_html({
+    "background": "<p>What this folder covers, who it is for and why it matters.</p>",
+    "diagram": "<p>Click the pen, then press / and choose Diagram to draw it here.</p>",
+})
 
 
 def now():
@@ -301,7 +327,21 @@ def folder(fid):
     editors = [r["subject"] for r in db().execute(
         "SELECT subject FROM perms WHERE folder_id=? ORDER BY subject", (fid,))]
     return render_template("folder.html", folder=f, readme=readme, pages=pages, editors=editors,
-                           folders=all_folders(), links=page_links(readme["html"]))
+                           folders=all_folders(), links=page_links(readme["html"]),
+                           sections=overview_sections(readme["html"]), SECTIONS=SECTIONS)
+
+
+@app.post("/folder/<int:fid>/section/<key>")
+def save_section(fid, key):
+    """Saves one overview section in place (from the folder page); the other sections are left as they are."""
+    if key not in SECTIONS:
+        abort(404)
+    require_edit(fid)
+    readme = get_or_404("SELECT * FROM pages WHERE folder_id=? AND is_readme=1", fid)
+    sections = overview_sections(readme["html"])
+    sections[key] = request.form.get("html", "").strip()
+    save_page(readme["id"], fid, "Overview", sections_html(sections))
+    return {"html": sections[key]}
 
 
 @app.route("/page/<int:pid>")
