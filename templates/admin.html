@@ -1,0 +1,56 @@
+{% extends "base.html" %}{% block title %}Admin{% endblock %}
+{% block body %}
+<h1>Admin</h1>
+
+<h2>Batches</h2>
+<form method="post" action="/admin/batch" class="stack">
+  <label>Batch number <input name="batch" placeholder="0521" required></label>
+  <label>Trainee names <small>(comma or one per line)</small>
+    <textarea name="names" rows="3" placeholder="nic, sam, alex" required></textarea></label>
+  <button>Create batch / add trainees</button>
+</form>
+<ul class="list">
+  {% for b in batches %}
+  <li><strong>{{ b.id }}</strong> <small>created {{ b.created_at }}</small><div>{{ b.members or 'no trainees' }}</div></li>
+  {% else %}<li class="empty">No batches yet.</li>{% endfor %}
+</ul>
+
+<h2 id="perms">Who can edit which folder</h2>
+<p><small>Everyone can view everything. Admins can edit everything.</small></p>
+<table>
+  <tr><th>Folder</th><th>Can edit</th><th>Give edit rights</th></tr>
+  {% for f in folders %}
+  <tr>
+    <td>{{ f.name }}</td>
+    <td>
+      {% for s in perms.get(f.id, []) %}
+      <form method="post" action="/admin/perm" class="chip">
+        <input type="hidden" name="folder_id" value="{{ f.id }}"><input type="hidden" name="subject" value="{{ s }}">
+        <input type="hidden" name="action" value="revoke">
+        {{ s|replace('batch:', 'batch ') }} <button title="Remove" aria-label="Remove {{ s }}">✕</button>
+      </form>
+      {% else %}<small>admins only</small>{% endfor %}
+    </td>
+    <td>
+      <form method="post" action="/admin/perm" class="inline">
+        <input type="hidden" name="folder_id" value="{{ f.id }}">
+        <select name="subject" required aria-label="Batch or user">
+          <option value="">Choose…</option>
+          <optgroup label="Whole batch">{% for b in batches %}<option value="batch:{{ b.id }}">batch {{ b.id }}</option>{% endfor %}</optgroup>
+          <optgroup label="One user">{% for u in users %}<option>{{ u.name }}</option>{% endfor %}</optgroup>
+        </select>
+        <button>Grant</button>
+      </form>
+    </td>
+  </tr>
+  {% else %}<tr><td colspan="3" class="empty">Create a folder on the home page first.</td></tr>{% endfor %}
+</table>
+
+<h2>Admins</h2>
+<p>{% for a in admins %}{{ a.name }}{% if not loop.last %}, {% endif %}{% endfor %}</p>
+<form method="post" action="/admin/admins" class="inline">
+  <input name="name" placeholder="Admin name" required aria-label="Admin name">
+  <input name="pin" type="password" placeholder="PIN" minlength="4" required aria-label="PIN">
+  <button>Add admin / change PIN</button>
+</form>
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "base.html" %}{% block title %}{{ page.title }}{% endblock %}
+{% block body %}
+<p class="crumbs"><a href="/">Folders</a> / <a href="{{ url_for('folder', fid=page.folder_id) }}">{{ page.folder }}</a> /</p>
+{% if rev %}
+<p class="flash">Old version saved by {{ rev.saved_by }} on {{ rev.saved_at }}.
+  <a href="{{ url_for('page', pid=page.id) }}">See current version</a></p>
+{% endif %}
+<div class="row">
+  <h1>{{ rev.title if rev else page.title }}</h1>
+  <div class="actions">
+    {% if rev %}
+      {% if can_edit(page.folder_id) %}
+      <form method="post" action="{{ url_for('restore', rid=rev.id) }}" data-confirm="Restore this version? The current version stays in history."><button>Restore this version</button></form>
+      {% endif %}
+    {% else %}
+      {% if can_edit(page.folder_id) %}<a class="button" href="{{ url_for('edit', pid=page.id) }}">Edit</a>{% endif %}
+      <a class="button secondary" href="{{ url_for('history', pid=page.id) }}">History</a>
+      {% if is_admin() %}
+      <form method="post" action="{{ url_for('delete_page', pid=page.id) }}" data-confirm="Delete this page? Its history is kept in the database."><button class="danger">Delete</button></form>
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+{% if not rev %}<p><small>Last edited by {{ page.updated_by }} · {{ page.updated_at }}</small></p>{% endif %}
+<article class="content">{{ (rev.html if rev else page.html)|safe }}</article>
+{% endblock %}

@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% block title %}History · {{ page.title }}{% endblock %}
+{% block body %}
+<p class="crumbs"><a href="{{ url_for('page', pid=page.id) }}">← {{ page.title }}</a></p>
+<h1>History</h1>
+<ul class="list">
+  {% for r in revs %}
+  <li><a href="{{ url_for('revision', rid=r.id) }}">{{ r.saved_at }}</a> <small>{{ r.saved_by }} · “{{ r.title }}”{% if loop.first %} · current{% endif %}</small></li>
+  {% endfor %}
+</ul>
+{% endblock %}

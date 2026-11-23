@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% block title %}AAR{% endblock %}
+{% block body %}
+<h1>After action reviews</h1>
+<p><small>Anyone can add an entry. Entries can never be deleted, and every admin edit is kept in the entry's history.</small></p>
+<form method="post" class="stack">
+  <input name="title" placeholder="Title, e.g. Exercise 3, 21 Nov" required aria-label="Title">
+  <textarea name="body" rows="6" placeholder="What happened, what went well, what to improve…" required aria-label="Entry"></textarea>
+  <button>Add entry as {{ g.user.name }}</button>
+</form>
+{% for e in entries %}
+<section class="aar">
+  <h2><a href="{{ url_for('aar_entry', eid=e.id) }}">{{ e.title }}</a></h2>
+  <p><small>{{ e.author }} · {{ e.created_at }}{% if e.edited_by %} · edited by {{ e.edited_by }} {{ e.edited_at }}{% endif %}</small></p>
+  <div class="body">{{ e.body }}</div>
+</section>
+{% endfor %}
+{% endblock %}
