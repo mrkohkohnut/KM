@@ -55,6 +55,20 @@ post("/revision/4/restore")  # rev 1-2 = overviews, 3 = edit above, 4 = Router s
 assert b"blue" not in c.get("/page/3").data
 assert any(m["title"] == "Module 1" for m in c.get("/links.json").get_json())
 
+# admins can delete a folder with its overview and pages; trainees can't
+post("/who", name="admin", pin="1234")
+post("/folders", name="Old import")
+old = sqlite3.connect(km.DB_PATH).execute("SELECT id FROM folders WHERE name='Old import'").fetchone()[0]
+post(f"/folder/{old}/new", title="Old page", html="<p>zebra</p>")
+post("/admin/perm", folder_id=str(old), subject="batch:0521")
+post("/who", name="0521nic")
+assert post(f"/folder/{old}/delete").status_code == 403
+post("/who", name="admin", pin="1234")
+assert b"Delete folder" in c.get(f"/folder/{old}").data
+assert post(f"/folder/{old}/delete").status_code == 302
+assert c.get(f"/folder/{old}").status_code == 404 and b"Old page" not in c.get("/search?q=zebra").data
+assert not sqlite3.connect(km.DB_PATH).execute("SELECT 1 FROM pages WHERE folder_id=? UNION SELECT 1 FROM perms WHERE folder_id=?", (old, old)).fetchone()
+
 # AAR: title + points (observation / reflection / recommendation); anyone adds, only admins correct,
 # nobody deletes (enforced by the database)
 post("/who", name="0521nic")

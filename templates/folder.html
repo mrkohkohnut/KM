@@ -62,5 +62,16 @@
     </div>
     {% if is_admin() %}<a class="more" href="/admin#perms">Change edit rights</a>{% endif %}
   </section>
+  {% if is_admin() %}
+  <section>
+    <h2>Admin</h2>
+    <div class="group">
+      <form method="post" action="{{ url_for('delete_folder', fid=folder.id) }}"
+            data-confirm="Delete the folder “{{ folder.name }}”, its overview and its {{ pages|length }} page{{ '' if pages|length == 1 else 's' }}? This can't be undone from KM. Page history stays in the database.">
+        <button class="row danger">{{ icon('trash') }}<span class="rowtext">Delete folder</span></button>
+      </form>
+    </div>
+  </section>
+  {% endif %}
 </aside>
 {% endblock %}

@@ -366,6 +366,22 @@ def delete_page(pid):
     return redirect(url_for("folder", fid=p["folder_id"]))
 
 
+@app.post("/folder/<int:fid>/delete")
+def delete_folder(fid):
+    """Removes the folder, its overview, pages and edit rights. Page history and uploaded files are kept
+    (an uploaded file can be linked from another folder too)."""
+    require_admin()
+    f = get_or_404("SELECT * FROM folders WHERE id=?", fid)
+    d = db()
+    d.execute("DELETE FROM pages_fts WHERE rowid IN (SELECT id FROM pages WHERE folder_id=?)", (fid,))
+    d.execute("DELETE FROM pages WHERE folder_id=?", (fid,))
+    d.execute("DELETE FROM perms WHERE folder_id=?", (fid,))
+    d.execute("DELETE FROM folders WHERE id=?", (fid,))
+    d.commit()
+    flash(f"Deleted the folder {f['name']!r}.")
+    return redirect(url_for("home"))
+
+
 @app.route("/page/<int:pid>/history")
 def history(pid):
     p = get_or_404("SELECT p.*, f.name AS folder FROM pages p JOIN folders f ON f.id=p.folder_id WHERE p.id=?", pid)
