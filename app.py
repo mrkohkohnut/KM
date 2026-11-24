@@ -414,10 +414,11 @@ RANKS = {"REC", "PTE", "LCP", "CPL", "SGT", "SSG", "MSG", "SWO", "MWO", "SLTC", 
 
 
 def split_person(line):
-    """("ME4A", "Koh Junyang Nicholas") from "ME4A KOH JUNYANG NICHOLAS"; rank is "" if there isn't one."""
+    """("ME4A", "Koh Junyang Nicholas") from "ME4A KOH JUNYANG NICHOLAS" (ranks like ME4-2 too); rank is "" if there
+    isn't one."""
     words = line.split()
     rank = ""
-    if len(words) > 1 and re.fullmatch(r"[A-Za-z0-9]{2,5}", words[0]) and (
+    if len(words) > 1 and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]{1,7}", words[0]) and (
             words[0].upper() in RANKS or re.search(r"\d", words[0])):
         rank, words = words[0].upper(), words[1:]
     name = " ".join(words)
@@ -441,20 +442,15 @@ def people_lines(html):
 
 
 def people_html(lines):
-    """People grouped under their rank (each rank shown once), each with initials."""
-    out, current = [], None
+    """Each person with their rank in the bubble beside the name (initials if there is no rank)."""
+    out = []
     for line in lines:
         rank, name = split_person(line.strip())
         if not name:
             continue
-        if rank != current:
-            current = rank
-            if rank:
-                out.append(f'<li class="rank-head">{htmllib.escape(rank)}</li>')
-        words = [re.sub(r"[^A-Za-z]", "", w) for w in name.split()]
-        words = [w for w in words if w]
-        initials = (words[0][0] + (words[-1][0] if len(words) > 1 else "")).upper() if words else "?"
-        out.append(f'<li data-rank="{htmllib.escape(rank)}"><span class="initials" aria-hidden="true">{htmllib.escape(initials)}</span>'
+        words = [w for w in (re.sub(r"[^A-Za-z]", "", w) for w in name.split()) if w]
+        badge = rank or ((words[0][0] + (words[-1][0] if len(words) > 1 else "")).upper() if words else "?")
+        out.append(f'<li data-rank="{htmllib.escape(rank)}"><span class="badge{" rank" if rank else ""}">{htmllib.escape(badge)}</span>'
                    f'<span class="who">{htmllib.escape(name)}</span></li>')
     return f'<ul class="people">{"".join(out)}</ul>' if out else ""
 

@@ -94,8 +94,10 @@ assert r.get_json() == {"html": "<ul><li>0521nic</li></ul>"}
 # Done by typed as lines, in capitals or with commas, is tidied into a list with initials and ranks
 r = post(f"/folder/{sec}/section/people", people="ME4A KOH JUNYANG NICHOLAS\n\nME4A NG WEN ZE JASPER, CPT Alex Tan").get_json()["html"]
 assert km.people_lines(r) == ["ME4A Koh Junyang Nicholas", "ME4A Ng Wen Ze Jasper", "CPT Alex Tan"], r
-assert '<span class="initials" aria-hidden="true">KN</span>' in r and r.count('<li class="rank-head">ME4A</li>') == 1  # rank shown once
-assert b'data-lines="ME4A Koh Junyang Nicholas' in c.get(f"/folder/{sec}").data
+assert r.count('<span class="badge rank">ME4A</span>') == 2 and '<span class="badge rank">CPT</span>' in r  # rank beside each name
+r = post(f"/folder/{sec}/section/people", people="ME4-2 TAN JING SHENG\nTAN WEI").get_json()["html"]
+assert km.people_lines(r) == ["ME4-2 Tan Jing Sheng", "Tan Wei"] and '<span class="badge">TW</span>' in r  # no rank: initials
+assert b'data-lines="ME4-2 Tan Jing Sheng' in c.get(f"/folder/{sec}").data
 post(f"/folder/{sec}/section/people", html="<ul><li>0521nic</li></ul>")
 post(f"/folder/{sec}/section/background", html="<p>Game studio</p>")
 saved = km.overview_sections(sqlite3.connect(km.DB_PATH).execute(
