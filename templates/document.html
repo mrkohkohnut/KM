@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}{{ d.name }}{% endblock %}{% block layout %}docpage{% endblock %}
+{% block body %}
+<div class="docbar">
+  <a class="button plain" href="{{ url_for('folder', fid=d.folder_id) }}#{{ d.kind }}">Back to {{ d.folder }}</a>
+  <div class="grow"><b>{{ d.name }}</b> <small>Version {{ d.version }}{% if not editing %}, read-only{% endif %}</small></div>
+  <a class="button plain" href="{{ url_for('document_versions', did=d.id) }}">Versions</a>
+  <a class="button plain" href="{{ url_for('document_download', did=d.id) }}">{{ icon('download') }}Download</a>
+</div>
+{% if configured %}
+<div id="office" class="officeframe" data-server="{{ office }}"><p class="note">Opening the document editor…</p></div>
+<script type="application/json" id="office-config">{{ config|tojson }}</script>
+{% else %}
+<div class="empty-card"><p>Opening documents in the browser isn't set up on this KM yet (ONLYOFFICE_JWT_SECRET is missing; see the README). You can still download the file.</p></div>
+{% endif %}
+{% endblock %}
+{% block scripts %}{% if configured %}
+<script src="{{ office }}/web-apps/apps/api/documents/api.js"></script>
+<script src="{{ url_for('static', filename='office.js') }}"></script>
+{% endif %}{% endblock %}

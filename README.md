@@ -5,12 +5,18 @@ A small knowledge base for training batches. It runs on one Windows PC, and the 
 ## Install on the host PC (PC1) with Docker
 
 1. Install **Docker Desktop**. In its settings, turn on **"Start Docker Desktop when you sign in"**.
-2. Copy this folder to PC1, e.g. `C:\km`, then in a terminal in that folder run:
+2. Copy this folder to PC1, e.g. `C:\km`.
+3. Create the `.env` file once. It holds the secret key KM and the document editor share. In PowerShell in that folder:
+   ```
+   "ONLYOFFICE_JWT_SECRET=" + [guid]::NewGuid().ToString("N") | Out-File -Encoding ascii .env
+   ```
+4. Start everything:
    ```
    docker compose up -d --build
    ```
-3. In the router, give PC1 a fixed IP (a DHCP reservation).
-4. On any PC, open `http://<PC1's IP>:8080`. The first visit asks you to create the admin and its PIN.
+   The first start downloads the document editor (OnlyOffice, about 1 GB) and takes a few minutes. It needs about 4 GB of free RAM on PC1.
+5. In the router, give PC1 a fixed IP (a DHCP reservation).
+6. On any PC, open `http://<PC1's IP>:8080`. The first visit asks you to create the admin and its PIN.
 
 Docker restarts KM after a crash and whenever Docker Desktop starts. Docker Desktop starts when someone signs in to PC1, so PC1 must be signed in to after a reboot. Set PC1 to never sleep (Settings → Power → Sleep: Never).
 
@@ -20,7 +26,7 @@ Docker restarts KM after a crash and whenever Docker Desktop starts. Docker Desk
 | See logs and errors | `docker compose logs -f` |
 | Stop | `docker compose down` (your data is kept) |
 
-The PCs' firewalls are off, so no rule is needed. If you turn the firewall on, allow inbound TCP 8080.
+The PCs' firewalls are off, so no rule is needed. If you turn the firewall on, allow inbound TCP 8080 and 8081 (8081 is the document editor).
 
 ## How it's used
 
@@ -28,7 +34,9 @@ The PCs' firewalls are off, so no rule is needed. If you turn the firewall on, a
 - **Users:** trainees pick their name with no password. Admins need their PIN, and admin mode turns off after 2 hours idle.
 - **Admin → Who can edit:** give edit rights for a folder to a whole batch or to one user. Everyone can view everything.
 - **Folder overview:** each folder's overview has four sections (Background, Network diagram, Done by, Links to resources). Click a section's pen to edit just that section in place, then Save. The Network diagram section is a draw.io diagram only: drop a `.drawio` file on it (or click its **+** to choose one from your computer), then click the diagram to edit it in draw.io.
-- **Pages:** drag files into the editor and they upload to PC1. The **Diagram** button opens draw.io, and double-clicking a diagram edits it. Every save is kept in **History** and can be restored.
+- **Documentation and Slides:** each folder has both. Upload Word, Excel or PDF files to Documentation and PowerPoint or PDF files to Slides (click **Upload**, drop files on the section, or start a **New document** / **New presentation**). Click a file to open it in the browser: people with edit rights can edit it, everyone else can read it. Every save in the editor becomes a new version; the clock button lists them for download.
+- **Reflections:** anyone can add their own reflection to a folder. The author or an admin can edit or remove it.
+- **Older pages:** pages made before Documentation and Slides existed (such as the imported Emails or Audio pages) are listed at the bottom of their folder.
 - **AAR:** anyone can add an entry. Only admins can edit, and every earlier version is kept. Nobody can delete an entry, because the database itself refuses.
 
 ## Importing the Smelling Time Google Drive folder

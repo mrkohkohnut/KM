@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Versions of {{ d.name }}{% endblock %}
+{% block crumbs %}{% with items = [(d.folder, url_for('folder', fid=d.folder_id) ~ '#' ~ d.kind), (d.name, url_for('document', did=d.id)), ('Versions', None)] %}{% include "_crumbs.html" %}{% endwith %}{% endblock %}
+{% block body %}
+<h1 class="large">Versions of {{ d.name }}</h1>
+<p class="sub">Every save in the editor is kept. Download any version.</p>
+<div class="group">
+  {% for v in versions %}
+  <a class="row" href="{{ url_for('document_version', did=d.id, vid=v.id) }}">
+    <span class="rowtext"><span>Version {{ v.version }}{% if loop.first %} <em class="pill">Current</em>{% endif %}</span><small>Saved {{ v.saved_at|when }} by {{ v.saved_by }}</small></span>
+    <span class="chev">{{ icon('download') }}</span>
+  </a>
+  {% endfor %}
+</div>
+{% endblock %}

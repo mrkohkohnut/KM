@@ -9,6 +9,22 @@ services:
       - ./import:/import       # put Google Drive downloads here, then: docker compose exec km python app.py import /import
     environment:
       KM_BACKUP: /backup
+      ONLYOFFICE_JWT_SECRET: ${ONLYOFFICE_JWT_SECRET:?Create the .env file first; see "Documents and slides" in the README}
     restart: unless-stopped    # comes back after crashes and when Docker starts
+
+  # Opens Word, Excel and PowerPoint files in the browser (Documentation and Slides). Browsers reach it on port 8081.
+  onlyoffice:
+    image: onlyoffice/documentserver:10.0.0
+    ports:
+      - "8081:80"
+    environment:
+      JWT_ENABLED: "true"
+      JWT_SECRET: ${ONLYOFFICE_JWT_SECRET:?Create the .env file first; see "Documents and slides" in the README}
+      ALLOW_PRIVATE_IP_ADDRESS: "true"   # it fetches files from the km container over the private Docker network
+    volumes:
+      - onlyoffice-data:/var/www/onlyoffice/Data
+    restart: unless-stopped
+
 volumes:
   km-data:
+  onlyoffice-data:

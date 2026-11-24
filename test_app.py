@@ -1,7 +1,8 @@
 """Run: python test_app.py   (uses a throwaway data folder)"""
-import io, os, re, shutil, sqlite3, tempfile
+import io, json, os, re, shutil, sqlite3, tempfile, urllib.parse
 
 os.environ["KM_DATA"] = tempfile.mkdtemp()
+os.environ["ONLYOFFICE_JWT_SECRET"] = "test-secret"
 import app as km
 
 c = km.app.test_client()
@@ -103,6 +104,55 @@ old = '<h2>Background</h2><p>Imported.</p><h2>Network diagram</h2><p>d</p><h2>Ke
 assert km.overview_sections(old) == {"background": "<p>Imported.</p>", "diagram": "", "people": "<p>Nic</p>",
                                      "resources": "<h3>Files</h3><p>f</p>"}  # text in the diagram section is dropped
 
+# Documentation and Slides: upload or start blank office files, open them in OnlyOffice, save new versions
+post("/who", name="admin", pin="1234")
+post("/folders", name="Docs")
+dfid = sqlite3.connect(km.DB_PATH).execute("SELECT id FROM folders WHERE name='Docs'").fetchone()[0]
+post("/admin/perm", folder_id=str(dfid), subject="0521sam")
+c.post(f"/folder/{dfid}/documents/doc", data={"file": (io.BytesIO(b"PK-docx"), "Report.docx")}, content_type="multipart/form-data")
+c.post(f"/folder/{dfid}/documents/doc", data={"file": (io.BytesIO(b"MZ"), "tool.exe")}, content_type="multipart/form-data")
+c.post(f"/folder/{dfid}/documents/slides", data={"blank": "1"})
+docs = sqlite3.connect(km.DB_PATH).execute("SELECT id, kind, name FROM documents WHERE folder_id=? ORDER BY id", (dfid,)).fetchall()
+assert [(k, n) for _, k, n in docs] == [("doc", "Report.docx"), ("slides", "Untitled presentation.pptx")], docs
+report = docs[0][0]
+page_html = c.get(f"/folder/{dfid}").data
+assert b"Report.docx" in page_html and b"Untitled presentation.pptx" in page_html and b"Reflections" in page_html
+config = json.loads(re.search(rb'id="office-config">(.*?)</script>', c.get(f"/document/{report}").data).group(1))
+assert config["editorConfig"]["mode"] == "edit" and km.jwt_decode(config["token"])["document"]["key"] == config["document"]["key"]
+file_url = urllib.parse.urlsplit(config["document"]["url"])
+assert c.get(f"{file_url.path}?t=wrong").status_code == 403
+assert c.get(f"{file_url.path}?{file_url.query}").data == b"PK-docx"
+cb = urllib.parse.urlsplit(config["editorConfig"]["callbackUrl"])
+cb_url = f"{cb.path}?{cb.query}"
+assert c.post(cb_url, json={"status": 1, "token": km.jwt_encode({"status": 1})}).get_json() == {"error": 0}
+assert c.post(cb_url, json={"status": 2, "url": "http://x/y", "token": "forged"}).status_code == 403
+class FakeResponse(io.BytesIO):
+    def __enter__(self): return self
+    def __exit__(self, *a): pass
+fetched = []
+km.urllib.request.urlopen = lambda url, timeout: fetched.append(url) or FakeResponse(b"PK-edited")
+saved = {"status": 2, "url": "http://192.168.1.10:8081/cache/files/abc/output.docx?md5=1", "users": ["0521sam"]}
+assert c.post(cb_url, headers={"Authorization": "Bearer " + km.jwt_encode({"payload": saved})}, json=saved).get_json() == {"error": 0}
+assert fetched == ["http://onlyoffice/cache/files/abc/output.docx?md5=1"]  # fetched over the internal network
+row = sqlite3.connect(km.DB_PATH).execute("SELECT version, updated_by FROM documents WHERE id=?", (report,)).fetchone()
+assert row == (2, "0521sam") and c.get(f"/document/{report}/download").data == b"PK-edited"
+assert b"Version 1" in c.get(f"/document/{report}/versions").data
+post("/who", name="0521nic")  # no edit rights here: can read and download, not change
+assert json.loads(re.search(rb'id="office-config">(.*?)</script>', c.get(f"/document/{report}").data).group(1))["editorConfig"]["mode"] == "view"
+assert c.post(f"/folder/{dfid}/documents/doc", data={"blank": "1"}).status_code == 403
+assert post(f"/document/{report}/delete").status_code == 403
+
+# Reflections: anyone adds their own; only the author or an admin changes or removes it
+assert post(f"/folder/{dfid}/reflections", html="<p>Comms were hard</p>").status_code == 200
+rid = sqlite3.connect(km.DB_PATH).execute("SELECT id FROM reflections WHERE author='0521nic'").fetchone()[0]
+assert post(f"/reflection/{rid}", html="<p>Comms were very hard</p>").get_json() == {"html": "<p>Comms were very hard</p>"}
+post("/who", name="0521sam")
+assert post(f"/reflection/{rid}", html="hijack").status_code == 403 and post(f"/reflection/{rid}/delete").status_code == 403
+assert b"Comms were very hard" in c.get(f"/folder/{dfid}").data
+post("/who", name="admin", pin="1234")
+assert post(f"/reflection/{rid}/delete").status_code == 302
+assert post(f"/folder/{dfid}/delete").status_code == 302  # a folder with documents and reflections can be deleted
+
 # AAR: title + points (observation / reflection / recommendation); anyone adds, only admins correct,
 # nobody deletes (enforced by the database)
 post("/who", name="0521nic")
@@ -164,13 +214,16 @@ assert not db.execute("SELECT 1 FROM folders WHERE name='RivalBlocks'").fetchone
 importer.main([drive])
 overview = lambda f: db.execute("SELECT p.html FROM pages p JOIN folders f ON f.id=p.folder_id WHERE f.name=? AND p.is_readme", (f,)).fetchone()[0]
 rival, tik = overview("RivalBlocks"), overview("TikTubeYouTok")
-assert "RivalBlocks NV.pptx" in rival and "RivalBlocks NV" not in tik
-assert "NV Documentation (Ours).docx" in tik and "(Ours)" not in rival
+docs_in = lambda f: {r[0] for r in db.execute("SELECT d.kind || ':' || d.name FROM documents d JOIN folders f ON f.id=d.folder_id WHERE f.name=?", (f,))}
+assert "slides:RivalBlocks NV.pptx" in docs_in("RivalBlocks") and "slides:RivalBlocks NV.pptx" not in docs_in("TikTubeYouTok")
+assert "doc:NV Documentation (Ours).docx" in docs_in("TikTubeYouTok") and "slides:NV Slides 3.0 Final Final.pptx" in docs_in("RivalBlocks")
+assert "(Ours)" not in rival
 assert "network.drawio" in tik and "network.drawio" not in rival and "Diagram files" in tik and "network v2.drawio" in rival and "network v2.drawio" in tik
 assert "packetcapture-em1.pcap" in tik and "Feedback" not in tik + rival  # only the pcap comes from Archive
-assert "NV Documentation (Other Group).docx" in rival and "Emails" in rival
+assert "doc:NV Documentation (Other Group).docx" in docs_in("RivalBlocks") and "Emails" in rival
 link = lambda html_, name: re.search(r'href="([^"]+)">📎 ' + re.escape(name), html_).group(1)
-assert link(rival, "NV Slides 3.0 Final Final.pptx") == link(tik, "NV Slides 3.0 Final Final.pptx")  # stored once, in both
+deck_urls = {r[0] for r in db.execute("SELECT url FROM documents WHERE name='NV Slides 3.0 Final Final.pptx'")}
+assert len(deck_urls) == 1  # in both folders' Slides, stored once
 emails = db.execute("SELECT html FROM pages WHERE title='Emails'").fetchone()[0]
 assert "<h2>ASD</h2>" in emails and "Q3 close" in emails
 assert "<audio" in db.execute("SELECT html FROM pages WHERE title='Audio'").fetchone()[0]

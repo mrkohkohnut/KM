@@ -407,7 +407,7 @@ function diagramSection(section) {
 // Folder overview, other sections: the pen turns just that section into a block editor, saved in place.
 const EMPTY = '<p class="note">Nothing here yet.</p>';
 document.querySelectorAll('.ov-section[data-save]').forEach(section => {
-  const pen = section.querySelector('.pen');
+  const pen = section.querySelector('.pen:not(.remove)');
   const body = section.querySelector('.ov-body');
   if (section.id === 'diagram') return diagramSection(section);
   pen.addEventListener('click', () => {
@@ -423,6 +423,7 @@ document.querySelectorAll('.ov-section[data-save]').forEach(section => {
     pen.hidden = true;
     const ed = createEditor(holder, section.dataset.empty ? '' : shown, section.dataset.folder);
     const close = html => {
+      if (html && section.dataset.reload) return location.reload();  // e.g. a new reflection: show it with its author
       ed.destroy();
       bar.remove();
       body.innerHTML = html || EMPTY;

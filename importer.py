@@ -134,8 +134,16 @@ class Importer:
         diagrams, loose, pages = [], [], {}
         for rel, path in files:
             parts = rel.split("/")
+            e = km.ext(path.name)
+            kind = "slides" if e in km.OFFICE_TYPES["slide"] else "doc" if e in km.KINDS["doc"][1] else None
             if path.suffix.lower() == ".drawio":
                 diagrams.append(path)
+            elif kind and len(parts) <= 2:  # documents go to Documentation, decks to Slides
+                if self.c.execute("SELECT 1 FROM documents WHERE folder_id=? AND name=?", (fid, path.name)).fetchone():
+                    self.log.append(f"    skip {km.KINDS[kind][0]} file (exists): {path.name}")
+                else:
+                    km.add_document(self.c, fid, kind, path.name, self.url(path), path.stat().st_size, WHO)
+                    self.log.append(f"    {km.KINDS[kind][0]}: {path.name}")
             elif len(parts) <= 2:  # in the top Drive folder or directly in one of its subfolders
                 loose.append(path)
             else:  # deeper: on a page named after the subfolder, with a heading per folder below it

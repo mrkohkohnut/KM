@@ -18,7 +18,7 @@
       <a href="{{ url_for('folder', fid=f.id) }}">
         <span class="bigfolder">{{ icon('folder') }}</span>
         <strong>{{ f.name }}</strong>
-        <small>{{ f.n or 0 }} page{{ '' if f.n == 1 else 's' }}{% if f.n %}, updated {{ (f.last|when).split(',')[0] }}{% endif %}</small>
+        <small>{{ f.n or 0 }} file{{ '' if f.n == 1 else 's' }}{% if f.last %}, updated {{ (f.last|when).split(',')[0] }}{% endif %}</small>
       </a>
     </li>
     {% endfor %}

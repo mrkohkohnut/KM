@@ -3,6 +3,9 @@
 Run:     python app.py              (serves on http://0.0.0.0:8080)
 Backup:  python app.py backup D:\\km-backup
 """
+import base64
+import hashlib
+import hmac
 import html as htmllib
 import json
 import os
@@ -11,6 +14,8 @@ import shutil
 import sqlite3
 import sys
 import time
+import urllib.parse
+import urllib.request
 import uuid
 from itertools import groupby
 from datetime import datetime, timedelta
@@ -51,6 +56,16 @@ CREATE TABLE IF NOT EXISTS perms(folder_id INTEGER NOT NULL, subject TEXT NOT NU
 CREATE TABLE IF NOT EXISTS aar_entries(
   id INTEGER PRIMARY KEY, title TEXT NOT NULL, body TEXT NOT NULL,
   author TEXT NOT NULL, created_at TEXT NOT NULL, edited_by TEXT, edited_at TEXT);
+-- Documentation and Slides: office files opened in OnlyOffice; every save is a new version
+CREATE TABLE IF NOT EXISTS documents(
+  id INTEGER PRIMARY KEY, folder_id INTEGER NOT NULL REFERENCES folders(id), kind TEXT NOT NULL,
+  name TEXT NOT NULL, url TEXT NOT NULL, size INTEGER, version INTEGER NOT NULL DEFAULT 1, updated_by TEXT, updated_at TEXT);
+CREATE TABLE IF NOT EXISTS document_versions(
+  id INTEGER PRIMARY KEY, document_id INTEGER NOT NULL, version INTEGER, url TEXT, size INTEGER, saved_by TEXT, saved_at TEXT);
+CREATE TABLE IF NOT EXISTS reflections(
+  id INTEGER PRIMARY KEY, folder_id INTEGER NOT NULL REFERENCES folders(id), author TEXT NOT NULL,
+  html TEXT NOT NULL, created_at TEXT, updated_at TEXT);
+
 CREATE TABLE IF NOT EXISTS aar_history(
   id INTEGER PRIMARY KEY, entry_id INTEGER, title TEXT, body TEXT, written_by TEXT, written_at TEXT, replaced_at TEXT);
 
@@ -200,7 +215,7 @@ def close_db(_):
 @app.before_request
 def load_user():
     g.user = None
-    if request.endpoint == "static":
+    if request.endpoint in ("static", "onlyoffice_file", "onlyoffice_callback"):  # the latter two check a token instead
         return
     if not db().execute("SELECT 1 FROM users WHERE is_admin=1").fetchone():
         return None if request.endpoint == "setup" else redirect(url_for("setup"))
@@ -222,8 +237,10 @@ def security_headers(resp):
         "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; "
         "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
         "img-src 'self' data: blob:; font-src 'self' data: https://cdn.jsdelivr.net https://fonts.gstatic.com; "
-        " frame-src https://embed.diagrams.net; "
+        f" frame-src https://embed.diagrams.net {office_origin()}; "
         "connect-src 'self' https://cdn.jsdelivr.net")
+    resp.headers["Content-Security-Policy"] = resp.headers["Content-Security-Policy"].replace(
+        "script-src 'self'", f"script-src 'self' {office_origin()}")
     resp.headers["X-Content-Type-Options"] = "nosniff"
     return resp
 
@@ -313,9 +330,10 @@ def home():
 
 
 def all_folders():
-    return db().execute("""SELECT f.*, SUM(p.is_readme=0) AS n, MAX(p.updated_at) AS last,
-                           (SELECT updated_by FROM pages WHERE folder_id=f.id ORDER BY updated_at DESC LIMIT 1) AS last_by
-                           FROM folders f LEFT JOIN pages p ON p.folder_id=f.id GROUP BY f.id ORDER BY f.name""").fetchall()
+    return db().execute("""SELECT f.*, (SELECT COUNT(*) FROM documents WHERE folder_id=f.id) AS n,
+                           MAX((SELECT MAX(updated_at) FROM documents WHERE folder_id=f.id),
+                               (SELECT MAX(updated_at) FROM pages WHERE folder_id=f.id)) AS last
+                           FROM folders f ORDER BY f.name""").fetchall()
 
 
 @app.post("/folders")
@@ -348,9 +366,12 @@ def folder(fid):
              db().execute("SELECT * FROM pages WHERE folder_id=? AND is_readme=0 ORDER BY title", (fid,))]
     editors = [r["subject"] for r in db().execute(
         "SELECT subject FROM perms WHERE folder_id=? ORDER BY subject", (fid,))]
+    documents = db().execute("SELECT * FROM documents WHERE folder_id=? ORDER BY name COLLATE NOCASE", (fid,)).fetchall()
+    reflections = db().execute("SELECT * FROM reflections WHERE folder_id=? ORDER BY id", (fid,)).fetchall()
     return render_template("folder.html", folder=f, readme=readme, pages=pages, editors=editors,
                            folders=all_folders(), links=page_links(readme["html"]),
-                           sections=overview_sections(readme["html"]), SECTIONS=SECTIONS)
+                           sections=overview_sections(readme["html"]), SECTIONS=SECTIONS,
+                           documents=documents, reflections=reflections, KINDS=KINDS)
 
 
 @app.post("/folder/<int:fid>/section/<key>")
@@ -439,6 +460,9 @@ def delete_folder(fid):
     d.execute("DELETE FROM pages_fts WHERE rowid IN (SELECT id FROM pages WHERE folder_id=?)", (fid,))
     d.execute("DELETE FROM pages WHERE folder_id=?", (fid,))
     d.execute("DELETE FROM perms WHERE folder_id=?", (fid,))
+    d.execute("DELETE FROM document_versions WHERE document_id IN (SELECT id FROM documents WHERE folder_id=?)", (fid,))
+    d.execute("DELETE FROM documents WHERE folder_id=?", (fid,))
+    d.execute("DELETE FROM reflections WHERE folder_id=?", (fid,))
     d.execute("DELETE FROM folders WHERE id=?", (fid,))
     d.commit()
     flash(f"Deleted the folder {f['name']!r}.")
@@ -497,6 +521,243 @@ def store(filename, write):
 def uploads(path):
     inline = Path(path).suffix.lower() in VIEW_INLINE
     return send_from_directory(UPLOADS, path, as_attachment=not inline)
+
+
+# ---------- Documentation and Slides (OnlyOffice) ----------
+# OnlyOffice Document Server runs in its own container. The browser loads the editor from it (ONLYOFFICE_URL,
+# default: this host on port 8081); the document server fetches files from KM and posts saved versions back
+# (KM_INTERNAL_URL), signing everything with ONLYOFFICE_JWT_SECRET, which both containers share.
+OO_SECRET = os.environ.get("ONLYOFFICE_JWT_SECRET", "")
+OO_PUBLIC = os.environ.get("ONLYOFFICE_URL", "")
+OO_INTERNAL = os.environ.get("ONLYOFFICE_INTERNAL_URL", "http://onlyoffice")
+KM_INTERNAL = os.environ.get("KM_INTERNAL_URL", "http://km:8080")
+OFFICE_TYPES = {"word": {"docx", "doc", "odt", "rtf", "txt"}, "cell": {"xlsx", "xls", "ods", "csv"},
+                "slide": {"pptx", "ppt", "odp"}, "pdf": {"pdf"}}
+EDITABLE = {"docx", "xlsx", "pptx"}  # other formats open read-only
+KINDS = {"doc": ("Documentation", OFFICE_TYPES["word"] | OFFICE_TYPES["cell"] | OFFICE_TYPES["pdf"], "docx"),
+         "slides": ("Slides", OFFICE_TYPES["slide"] | OFFICE_TYPES["pdf"], "pptx")}
+
+
+def office_origin():
+    if OO_PUBLIC:
+        return OO_PUBLIC.rstrip("/")
+    return f"{request.scheme}://{request.host.rsplit(':', 1)[0]}:8081" if request else ""
+
+
+def b64url(data):
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+
+JWT_HEADER = json.dumps({"alg": "HS256", "typ": "JWT"}).encode()
+
+
+def jwt_encode(payload):
+    signing = f"{b64url(JWT_HEADER)}.{b64url(json.dumps(payload).encode())}"
+    return f"{signing}.{b64url(hmac.new(OO_SECRET.encode(), signing.encode(), hashlib.sha256).digest())}"
+
+
+def jwt_decode(token):
+    """The payload of an HS256 token signed with ONLYOFFICE_JWT_SECRET; ValueError if it isn't."""
+    try:
+        head, body, sig = token.split(".")
+    except ValueError:
+        raise ValueError("malformed token")
+    expected = b64url(hmac.new(OO_SECRET.encode(), f"{head}.{body}".encode(), hashlib.sha256).digest())
+    if not OO_SECRET or not hmac.compare_digest(sig, expected):
+        raise ValueError("bad signature")
+    return json.loads(base64.urlsafe_b64decode(body + "=" * (-len(body) % 4)))
+
+
+def file_token(purpose, doc_id):
+    return hmac.new(app.secret_key, f"{purpose}:{doc_id}".encode(), hashlib.sha256).hexdigest()
+
+
+def ext(name):
+    return Path(name).suffix.lower().lstrip(".")
+
+
+def add_document(c, folder_id, kind, name, url, size, who):
+    t = now()
+    did = c.execute("INSERT INTO documents(folder_id, kind, name, url, size, updated_by, updated_at) VALUES (?,?,?,?,?,?,?)",
+                    (folder_id, kind, name, url, size, who, t)).lastrowid
+    c.execute("INSERT INTO document_versions(document_id, version, url, size, saved_by, saved_at) VALUES (?,1,?,?,?,?)",
+              (did, url, size, who, t))
+    return did
+
+
+def upload_path(url):
+    return UPLOADS / url.removeprefix("/uploads/")
+
+
+@app.post("/folder/<int:fid>/documents/<kind>")
+def add_documents(fid, kind):
+    """Upload files into Documentation or Slides, or (blank=1) start a new empty document."""
+    if kind not in KINDS:
+        abort(404)
+    get_or_404("SELECT id FROM folders WHERE id=?", fid)
+    require_edit(fid)
+    _, allowed, blank_ext = KINDS[kind]
+    added, refused = 0, []
+    if request.form.get("blank"):
+        name = f"Untitled {'document' if kind == 'doc' else 'presentation'}.{blank_ext}"
+        src = BASE / "static" / "blank" / f"blank.{blank_ext}"
+        url = store(name, lambda p: shutil.copyfile(src, p))
+        add_document(db(), fid, kind, name, url, src.stat().st_size, g.user["name"])
+        added = 1
+    for f in request.files.getlist("file"):
+        if not f.filename:
+            continue
+        if ext(f.filename) not in allowed:
+            refused.append(f.filename)
+            continue
+        url = store(f.filename, f.save)
+        add_document(db(), fid, kind, f.filename, url, upload_path(url).stat().st_size, g.user["name"])
+        added += 1
+    db().commit()
+    if refused:
+        flash(f"{KINDS[kind][0]} takes {', '.join(sorted(allowed))} files. Not added: {', '.join(refused)}.")
+    if request.headers.get("X-Requested-With") == "fetch":
+        return {"added": added, "refused": refused}
+    return redirect(url_for("folder", fid=fid) + f"#{kind}")
+
+
+def get_document(did):
+    return get_or_404("SELECT d.*, f.name AS folder FROM documents d JOIN folders f ON f.id=d.folder_id WHERE d.id=?", did)
+
+
+@app.route("/document/<int:did>")
+def document(did):
+    d = get_document(did)
+    e = ext(d["name"])
+    doc_type = next((t for t, exts in OFFICE_TYPES.items() if e in exts), "word")
+    editing = can_edit(d["folder_id"]) and e in EDITABLE
+    config = {
+        "document": {"fileType": e, "key": f"km-{d['id']}-v{d['version']}", "title": d["name"],
+                     "url": f"{KM_INTERNAL}/onlyoffice/file/{d['id']}?t={file_token('file', d['id'])}",
+                     "permissions": {"edit": editing, "download": True}},
+        "documentType": doc_type,
+        "editorConfig": {"mode": "edit" if editing else "view", "lang": "en",
+                         "callbackUrl": f"{KM_INTERNAL}/onlyoffice/callback/{d['id']}?t={file_token('save', d['id'])}",
+                         "user": {"id": g.user["name"], "name": g.user["name"]},
+                         "customization": {"forcesave": True, "goback": {"url": url_for("folder", fid=d["folder_id"]) + f"#{d['kind']}"}}},
+        "height": "100%", "width": "100%",
+    }
+    if OO_SECRET:
+        config["token"] = jwt_encode(config)
+    return render_template("document.html", d=d, config=config, office=office_origin(), configured=bool(OO_SECRET),
+                           editing=editing)
+
+
+@app.route("/document/<int:did>/download")
+def document_download(did):
+    d = get_document(did)
+    return send_from_directory(UPLOADS, d["url"].removeprefix("/uploads/"), as_attachment=True, download_name=d["name"])
+
+
+@app.route("/document/<int:did>/versions")
+def document_versions(did):
+    d = get_document(did)
+    versions = db().execute("SELECT * FROM document_versions WHERE document_id=? ORDER BY version DESC", (did,)).fetchall()
+    return render_template("document_versions.html", d=d, versions=versions)
+
+
+@app.route("/document/<int:did>/version/<int:vid>")
+def document_version(did, vid):
+    d = get_document(did)
+    v = get_or_404("SELECT * FROM document_versions WHERE id=? AND document_id=?", vid, did)
+    return send_from_directory(UPLOADS, v["url"].removeprefix("/uploads/"), as_attachment=True,
+                               download_name=f"{Path(d['name']).stem} (v{v['version']}){Path(d['name']).suffix}")
+
+
+@app.post("/document/<int:did>/delete")
+def document_delete(did):
+    d = get_document(did)
+    require_edit(d["folder_id"])
+    db().execute("DELETE FROM document_versions WHERE document_id=?", (did,))
+    db().execute("DELETE FROM documents WHERE id=?", (did,))  # the files stay on disk, like other uploads
+    db().commit()
+    flash(f"Removed {d['name']}.")
+    return redirect(url_for("folder", fid=d["folder_id"]) + f"#{d['kind']}")
+
+
+@app.route("/onlyoffice/file/<int:did>")
+def onlyoffice_file(did):
+    """The document server fetches the current file here (no KM sign-in; a token in the URL instead)."""
+    if not hmac.compare_digest(request.args.get("t", ""), file_token("file", did)):
+        abort(403)
+    d = get_or_404("SELECT * FROM documents WHERE id=?", did)
+    return send_from_directory(UPLOADS, d["url"].removeprefix("/uploads/"), download_name=d["name"])
+
+
+@app.post("/onlyoffice/callback/<int:did>")
+def onlyoffice_callback(did):
+    """The document server reports editing status here and, when a document is saved, where to fetch it."""
+    if not hmac.compare_digest(request.args.get("t", ""), file_token("save", did)):
+        abort(403)
+    body = request.get_json(silent=True) or {}
+    token = body.get("token") or request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+    try:
+        payload = jwt_decode(token)
+    except ValueError:
+        return {"error": 1}, 403
+    payload = payload.get("payload", payload)  # the header form wraps the body in "payload"
+    if payload.get("status") not in (2, 6):  # 2: closed with changes, 6: saved while still open
+        return {"error": 0}
+    d = get_or_404("SELECT * FROM documents WHERE id=?", did)
+    src = urllib.parse.urlsplit(payload["url"])
+    internal = urllib.parse.urlsplit(OO_INTERNAL)
+    fetch_url = urllib.parse.urlunsplit((internal.scheme, internal.netloc, src.path, src.query, ""))
+    with urllib.request.urlopen(fetch_url, timeout=120) as r:
+        data = r.read()
+    who = (payload.get("users") or [None])[0] or "OnlyOffice"
+    url = store(d["name"], lambda p: p.write_bytes(data))
+    t, version = now(), d["version"] + 1
+    db().execute("UPDATE documents SET url=?, size=?, version=?, updated_by=?, updated_at=? WHERE id=?",
+                 (url, len(data), version, who, t, did))
+    db().execute("INSERT INTO document_versions(document_id, version, url, size, saved_by, saved_at) VALUES (?,?,?,?,?,?)",
+                 (did, version, url, len(data), who, t))
+    db().commit()
+    return {"error": 0}
+
+
+# ---------- Reflections: anyone can add their own; authors and admins can change or remove them ----------
+
+def get_reflection(rid):
+    r = get_or_404("SELECT * FROM reflections WHERE id=?", rid)
+    if not (is_admin() or r["author"] == g.user["name"]):
+        abort(403, "Only the author or an admin can change this reflection.")
+    return r
+
+
+@app.post("/folder/<int:fid>/reflections")
+def add_reflection(fid):
+    get_or_404("SELECT id FROM folders WHERE id=?", fid)
+    html = request.form.get("html", "").strip()
+    if not to_text(html).strip() and "<img" not in html:
+        abort(400, "A reflection needs some text.")
+    t = now()
+    db().execute("INSERT INTO reflections(folder_id, author, html, created_at, updated_at) VALUES (?,?,?,?,?)",
+                 (fid, g.user["name"], html, t, t))
+    db().commit()
+    return {"html": html}
+
+
+@app.post("/reflection/<int:rid>")
+def save_reflection(rid):
+    get_reflection(rid)
+    html = request.form.get("html", "").strip()
+    db().execute("UPDATE reflections SET html=?, updated_at=? WHERE id=?", (html, now(), rid))
+    db().commit()
+    return {"html": html}
+
+
+@app.post("/reflection/<int:rid>/delete")
+def delete_reflection(rid):
+    r = get_reflection(rid)
+    db().execute("DELETE FROM reflections WHERE id=?", (rid,))
+    db().commit()
+    flash("Reflection removed.")
+    return redirect(url_for("folder", fid=r["folder_id"]) + "#reflections")
 
 
 # ---------- AAR (add-only; admins may edit, nobody may delete) ----------

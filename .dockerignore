@@ -3,3 +3,4 @@ backup
 .git
 __pycache__
 import
+.env

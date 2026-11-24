@@ -50,3 +50,27 @@ function setupSheets(box) {
   select(0);
 }
 document.querySelectorAll('.drawio-sheets').forEach(setupSheets);
+
+// Documentation and Slides: picking files uploads them straight away; files can also be dropped on the card.
+document.querySelectorAll('.upload-form input[type=file]').forEach(input =>
+  input.addEventListener('change', () => input.files.length && input.form.submit()));
+document.querySelectorAll('.docs[data-upload]').forEach(card => {
+  card.addEventListener('dragover', e => {
+    if (!e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault();
+    card.classList.add('dragging');
+  });
+  card.addEventListener('dragleave', e => { if (!card.contains(e.relatedTarget)) card.classList.remove('dragging'); });
+  card.addEventListener('drop', async e => {
+    const files = [...(e.dataTransfer?.files || [])];
+    if (!files.length) return;
+    e.preventDefault();
+    card.classList.remove('dragging');
+    card.classList.add('busy');
+    const fd = new FormData();
+    files.forEach(f => fd.append('file', f, f.name));
+    const r = await fetch(card.dataset.upload, {method: 'POST', body: fd, headers: {'X-Requested-With': 'fetch'}});
+    if (!r.ok) alert(r.status === 403 ? 'You don\'t have edit rights for this folder.' : 'Uploading failed (' + r.status + ').');
+    location.reload();
+  });
+});
