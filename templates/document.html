@@ -5,7 +5,7 @@
 {% with open_folder = d.folder_id, current = 'doc:' ~ d.id %}{% include "_explorer.html" %}{% endwith %}
 <div class="docmain-area">
 <div class="docbar">
-  <a class="button plain" href="{{ url_for('folder', fid=d.folder_id) }}#{{ d.kind }}">Back to {{ d.folder }}</a>
+  <a class="button plain" href="{{ url_for('folder_section', fid=d.folder_id, section=d.kind) }}">Back to {{ 'Documentation' if d.kind == 'doc' else 'Slides' }}</a>
   <div class="grow"><b>{{ d.name }}</b> <small>Version {{ d.version }}{% if not editing %}, read-only{% endif %}</small></div>
   <a class="button plain" href="{{ url_for('document_versions', did=d.id) }}">Versions</a>
   <a class="button plain" href="{{ url_for('document_download', did=d.id) }}">{{ icon('download') }}Download</a>

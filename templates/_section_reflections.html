@@ -1,0 +1,27 @@
+{# Reflections for one folder; expects folder, reflections #}
+{% from "_icons.html" import icon %}
+<section class="card content overview" id="reflections">
+    <div class="cardhead"><h2>{{ icon('person') }}Reflections</h2></div>
+    {% for r in reflections %}
+    {% set mine = is_admin() or r.author == g.user.name %}
+    <section class="ov-section reflection" data-folder="{{ folder.id }}" {% if mine %}data-save="{{ url_for('save_reflection', rid=r.id) }}"{% endif %}>
+      <div class="ov-head">
+        <h2>{{ r.author }} <small>{{ r.created_at|when }}{% if r.updated_at != r.created_at %}, edited {{ r.updated_at|when }}{% endif %}</small></h2>
+        {% if mine %}
+        <div class="ov-tools">
+          <form method="post" action="{{ url_for('delete_reflection', rid=r.id) }}" data-confirm="Remove this reflection by {{ r.author }}?">
+            <button class="pen remove" title="Remove this reflection" aria-label="Remove this reflection by {{ r.author }}">{{ icon('trash') }}</button>
+          </form>
+          <button type="button" class="pen" title="Edit this reflection" aria-label="Edit this reflection by {{ r.author }}">{{ icon('pencil') }}</button>
+        </div>
+        {% endif %}
+      </div>
+      <div class="ov-body">{{ r.html|safe }}</div>
+    </section>
+    {% else %}<p class="note" id="no-reflections">No reflections yet. Add yours: what went well, what was hard, what you would do differently.</p>{% endfor %}
+    <section class="ov-section reflection new" data-folder="{{ folder.id }}" data-empty="1" data-reload="1"
+             data-save="{{ url_for('add_reflection', fid=folder.id) }}">
+      <div class="ov-head"><button type="button" class="pen add-reflection">{{ icon('plus') }}Add your reflection</button></div>
+      <div class="ov-body"></div>
+    </section>
+  </section>

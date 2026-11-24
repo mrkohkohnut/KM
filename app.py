@@ -404,6 +404,22 @@ def save_section(fid, key):
     return {"html": sections[key]}
 
 
+SECTION_VIEWS = {"doc": "Documentation", "slides": "Slides", "reflections": "Reflections", "pages": "Older pages"}
+
+
+@app.route("/folder/<int:fid>/<section>")
+def folder_section(fid, section):
+    """Documentation, Slides, Reflections or Older pages of a folder, each on its own (opened from the left-hand tree)."""
+    if section not in SECTION_VIEWS:
+        abort(404)
+    f = get_or_404("SELECT * FROM folders WHERE id=?", fid)
+    documents = db().execute("SELECT * FROM documents WHERE folder_id=? ORDER BY name COLLATE NOCASE", (fid,)).fetchall()
+    reflections = db().execute("SELECT * FROM reflections WHERE folder_id=? ORDER BY id", (fid,)).fetchall()
+    pages = db().execute("SELECT * FROM pages WHERE folder_id=? AND is_readme=0 ORDER BY title", (fid,)).fetchall()
+    return render_template("folder_section.html", folder=f, section=section, title=SECTION_VIEWS[section], kind=section,
+                           documents=documents, reflections=reflections, pages=pages, KINDS=KINDS)
+
+
 @app.route("/page/<int:pid>")
 def page(pid):
     p = get_or_404("SELECT p.*, f.name AS folder FROM pages p JOIN folders f ON f.id=p.folder_id WHERE p.id=?", pid)
@@ -634,7 +650,7 @@ def add_documents(fid, kind):
         flash(f"{KINDS[kind][0]} takes {', '.join(sorted(allowed))} files. Not added: {', '.join(refused)}.")
     if request.headers.get("X-Requested-With") == "fetch":
         return {"added": added, "refused": refused}
-    return redirect(url_for("folder", fid=fid) + f"#{kind}")
+    return redirect(url_for("folder_section", fid=fid, section=kind))
 
 
 def get_document(did):
@@ -655,7 +671,7 @@ def document(did):
         "editorConfig": {"mode": "edit" if editing else "view", "lang": "en",
                          "callbackUrl": f"{KM_INTERNAL}/onlyoffice/callback/{d['id']}?t={file_token('save', d['id'])}",
                          "user": {"id": g.user["name"], "name": g.user["name"]},
-                         "customization": {"forcesave": True, "goback": {"url": url_for("folder", fid=d["folder_id"]) + f"#{d['kind']}"}}},
+                         "customization": {"forcesave": True, "goback": {"url": url_for("folder_section", fid=d["folder_id"], section=d["kind"])}}},
         "height": "100%", "width": "100%",
     }
     if OO_SECRET:
@@ -693,7 +709,7 @@ def document_delete(did):
     db().execute("DELETE FROM documents WHERE id=?", (did,))  # the files stay on disk, like other uploads
     db().commit()
     flash(f"Removed {d['name']}.")
-    return redirect(url_for("folder", fid=d["folder_id"]) + f"#{d['kind']}")
+    return redirect(url_for("folder_section", fid=d["folder_id"], section=d["kind"]))
 
 
 @app.route("/onlyoffice/file/<int:did>")
@@ -773,7 +789,7 @@ def delete_reflection(rid):
     db().execute("DELETE FROM reflections WHERE id=?", (rid,))
     db().commit()
     flash("Reflection removed.")
-    return redirect(url_for("folder", fid=r["folder_id"]) + "#reflections")
+    return redirect(url_for("folder_section", fid=r["folder_id"], section="reflections"))
 
 
 # ---------- AAR (add-only; admins may edit, nobody may delete) ----------

@@ -116,7 +116,11 @@ docs = sqlite3.connect(km.DB_PATH).execute("SELECT id, kind, name FROM documents
 assert [(k, n) for _, k, n in docs] == [("doc", "Report.docx"), ("slides", "Untitled presentation.pptx")], docs
 report = docs[0][0]
 page_html = c.get(f"/folder/{dfid}").data
-assert b"Report.docx" in page_html and b"Untitled presentation.pptx" in page_html and b"Reflections" in page_html
+assert b'class="card docs"' not in page_html and b'id="reflections"' not in page_html  # the folder page is just the overview
+assert b"Report.docx" in page_html and b"Untitled presentation.pptx" in page_html  # listed in the left-hand tree
+doc_view = c.get(f"/folder/{dfid}/doc").data
+assert b'class="card docs"' in doc_view and b"Report.docx" in doc_view and b"New document" in doc_view
+assert b"Untitled presentation.pptx" in c.get(f"/folder/{dfid}/slides").data and c.get(f"/folder/{dfid}/nope").status_code == 404
 assert page_html.count(b'class="tree-folder"') >= 1 and b'href="/document/' in page_html  # files listed in the left-hand tree
 config = json.loads(re.search(rb'id="office-config">(.*?)</script>', c.get(f"/document/{report}").data).group(1))
 assert config["editorConfig"]["mode"] == "edit" and km.jwt_decode(config["token"])["document"]["key"] == config["document"]["key"]
@@ -149,7 +153,7 @@ rid = sqlite3.connect(km.DB_PATH).execute("SELECT id FROM reflections WHERE auth
 assert post(f"/reflection/{rid}", html="<p>Comms were very hard</p>").get_json() == {"html": "<p>Comms were very hard</p>"}
 post("/who", name="0521sam")
 assert post(f"/reflection/{rid}", html="hijack").status_code == 403 and post(f"/reflection/{rid}/delete").status_code == 403
-assert b"Comms were very hard" in c.get(f"/folder/{dfid}").data
+assert b"Comms were very hard" in c.get(f"/folder/{dfid}/reflections").data
 post("/who", name="admin", pin="1234")
 assert post(f"/reflection/{rid}/delete").status_code == 302
 assert post(f"/folder/{dfid}/delete").status_code == 302  # a folder with documents and reflections can be deleted

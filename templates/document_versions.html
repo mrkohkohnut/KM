@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from "_icons.html" import icon %}
 {% block title %}Versions of {{ d.name }}{% endblock %}
-{% block crumbs %}{% with items = [(d.folder, url_for('folder', fid=d.folder_id) ~ '#' ~ d.kind), (d.name, url_for('document', did=d.id)), ('Versions', None)] %}{% include "_crumbs.html" %}{% endwith %}{% endblock %}
+{% block crumbs %}{% with items = [(d.folder, url_for('folder', fid=d.folder_id)), ('Documentation' if d.kind == 'doc' else 'Slides', url_for('folder_section', fid=d.folder_id, section=d.kind)), (d.name, url_for('document', did=d.id)), ('Versions', None)] %}{% include "_crumbs.html" %}{% endwith %}{% endblock %}
 {% block body %}
 <h1 class="large">Versions of {{ d.name }}</h1>
 <p class="sub">Every save in the editor is kept. Download any version.</p>

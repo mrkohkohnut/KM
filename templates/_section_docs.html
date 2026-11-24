@@ -1,0 +1,43 @@
+{# Documentation or Slides for one folder; expects folder, kind, documents, KINDS #}
+{% from "_icons.html" import icon %}
+{% set label, allowed, blank = KINDS[kind] %}
+{% set docs = documents|selectattr('kind', 'equalto', kind)|list %}
+  <section class="card docs" id="{{ kind }}" data-folder="{{ folder.id }}"
+           {% if can_edit(folder.id) %}data-upload="{{ url_for('add_documents', fid=folder.id, kind=kind) }}"{% endif %}>
+    <div class="cardhead">
+      <h2>{{ icon('doc' if kind == 'doc' else 'slides') }}{{ label }}</h2>
+      {% if can_edit(folder.id) %}
+      <div class="inline">
+        <form method="post" action="{{ url_for('add_documents', fid=folder.id, kind=kind) }}">
+          <input type="hidden" name="blank" value="1"><button class="plain">{{ icon('plus') }}New {{ 'document' if kind == 'doc' else 'presentation' }}</button>
+        </form>
+        <form method="post" action="{{ url_for('add_documents', fid=folder.id, kind=kind) }}" enctype="multipart/form-data" class="upload-form">
+          <label class="button">{{ icon('upload') }}Upload<input type="file" name="file" multiple accept="{{ '.' ~ allowed|sort|join(',.') }}" hidden></label>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+    {% if docs %}
+    <div class="doclist">
+      {% for d in docs %}
+      <div class="docrow">
+        <a class="docmain" href="{{ url_for('document', did=d.id) }}">
+          <span class="rowicon {{ 'doc' if kind == 'doc' else 'slide' }}">{{ icon('doc' if kind == 'doc' else 'slides') }}</span>
+          <span class="rowtext"><span class="rowtitle">{{ d.name }}</span>
+            <small>Version {{ d.version }}, saved {{ d.updated_at|when }} by {{ d.updated_by }}</small></span>
+        </a>
+        <a class="iconbtn" href="{{ url_for('document_download', did=d.id) }}" title="Download {{ d.name }}" aria-label="Download {{ d.name }}">{{ icon('download') }}</a>
+        <a class="iconbtn" href="{{ url_for('document_versions', did=d.id) }}" title="Earlier versions" aria-label="Earlier versions of {{ d.name }}">{{ icon('clock') }}</a>
+        {% if can_edit(folder.id) %}
+        <form method="post" action="{{ url_for('document_delete', did=d.id) }}" data-confirm="Remove {{ d.name }} from {{ label }}?">
+          <button class="iconbtn danger" title="Remove {{ d.name }}" aria-label="Remove {{ d.name }}">{{ icon('trash') }}</button>
+        </form>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% if can_edit(folder.id) %}
+    <div class="filedrop"><b>Drop {{ 'Word, Excel or PDF' if kind == 'doc' else 'PowerPoint or PDF' }} files here</b> to add them{% if not docs %}, or start a new one{% endif %}.</div>
+    {% elif not docs %}<p class="note">Nothing here yet.</p>{% endif %}
+  </section>

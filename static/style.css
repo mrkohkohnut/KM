@@ -426,3 +426,5 @@ main.docpage { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 
 main.docpage .explorer-side { overflow: auto; }
 .docmain-area { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 @media (max-width: 900px) { main.docpage { grid-template-columns: minmax(0, 1fr); } main.docpage .explorer-side { display: none; } }
+main.side { grid-template-columns: 250px minmax(0, 1fr); max-width: 1200px; }
+@media (max-width: 760px) { main.side { grid-template-columns: minmax(0, 1fr); } main.side .explorer-side { order: 2; } }

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}{{ title }} – {{ folder.name }}{% endblock %}{% block layout %}side{% endblock %}
+{% block crumbs %}{% with items = [(folder.name, url_for('folder', fid=folder.id)), (title, None)] %}{% include "_crumbs.html" %}{% endwith %}{% endblock %}
+{% block body %}
+{% with open_folder = folder.id, current = 'section:' ~ section %}{% include "_explorer.html" %}{% endwith %}
+<div class="center">
+  {% if section in KINDS %}{% include "_section_docs.html" %}
+  {% elif section == 'reflections' %}{% include "_section_reflections.html" %}
+  {% else %}
+  <section class="card">
+    <div class="cardhead"><h2>{{ icon('doc') }}Older pages</h2></div>
+    <p class="sub">Pages made before Documentation and Slides existed, such as the imported Emails or Audio pages.</p>
+    <div class="group">
+      {% for p in pages %}
+      <a class="row" href="{{ url_for('page', pid=p.id) }}"><span class="rowicon doc">{{ icon('doc') }}</span>
+        <span class="rowtext"><span class="rowtitle">{{ p.title }}</span></span><small class="rowmeta">{{ p.updated_at|when }}</small><span class="chev">{{ icon('chev') }}</span></a>
+      {% else %}<div class="row"><span class="rowtext note">No older pages in this folder.</span></div>{% endfor %}
+    </div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}{% if section == 'reflections' %}{% include "_editor_scripts.html" %}{% endif %}{% endblock %}

@@ -6,14 +6,14 @@
     {% for f in explorer() %}
     {% set here = f.id == open_folder %}
     <details class="tree-folder" data-key="f{{ f.id }}" {% if here %}open{% endif %} style="--tint: {{ spine(f.id) }}">
-      <summary {% if here and current == 'folder' %}aria-current="page"{% endif %}>
+      <summary>
         <span class="twisty">{{ icon('chev') }}</span><span class="tinted">{{ icon('folder') }}</span><span class="grow">{{ f.name }}</span>
       </summary>
       <div class="tree-children">
-        <a href="{{ url_for('folder', fid=f.id) }}" class="leaf"><span class="ic-info">{{ icon('info') }}</span><span class="grow">Overview</span></a>
+        <a href="{{ url_for('folder', fid=f.id) }}" class="leaf" {% if here and current == 'folder' %}aria-current="page"{% endif %}><span class="ic-info">{{ icon('info') }}</span><span class="grow">Overview</span></a>
         {% for kind, label in (('doc', 'Documentation'), ('slides', 'Slides')) %}
-        <details class="tree-group" data-key="f{{ f.id }}-{{ kind }}" {% if here and (f[kind] or current.startswith('doc:')) %}open{% endif %}>
-          <summary><span class="twisty">{{ icon('chev') }}</span><a href="{{ url_for('folder', fid=f.id) }}#{{ kind }}" class="grow">{{ label }}</a><small>{{ f[kind]|length }}</small></summary>
+        <details class="tree-group" data-key="f{{ f.id }}-{{ kind }}" {% if here and (f[kind] or current == 'section:' ~ kind or current.startswith('doc:')) %}open{% endif %}>
+          <summary {% if here and current == 'section:' ~ kind %}aria-current="page"{% endif %}><span class="twisty">{{ icon('chev') }}</span><a href="{{ url_for('folder_section', fid=f.id, section=kind) }}" class="grow">{{ label }}</a><small>{{ f[kind]|length }}</small></summary>
           <div class="tree-children">
             {% for d in f[kind] %}
             <a href="{{ url_for('document', did=d.id) }}" class="leaf" {% if current == 'doc:' ~ d.id %}aria-current="page"{% endif %} title="{{ d.name }}">
@@ -22,10 +22,10 @@
           </div>
         </details>
         {% endfor %}
-        <a href="{{ url_for('folder', fid=f.id) }}#reflections" class="leaf"><span class="ic-refl">{{ icon('person') }}</span><span class="grow">Reflections</span><small>{{ f.reflections }}</small></a>
+        <a href="{{ url_for('folder_section', fid=f.id, section='reflections') }}" class="leaf" {% if here and current == 'section:reflections' %}aria-current="page"{% endif %}><span class="ic-refl">{{ icon('person') }}</span><span class="grow">Reflections</span><small>{{ f.reflections }}</small></a>
         {% if f.pages %}
-        <details class="tree-group" data-key="f{{ f.id }}-pages" {% if here and current.startswith('page:') %}open{% endif %}>
-          <summary><span class="twisty">{{ icon('chev') }}</span><span class="grow">Older pages</span><small>{{ f.pages|length }}</small></summary>
+        <details class="tree-group" data-key="f{{ f.id }}-pages" {% if here and (current.startswith('page:') or current == 'section:pages') %}open{% endif %}>
+          <summary {% if here and current == 'section:pages' %}aria-current="page"{% endif %}><span class="twisty">{{ icon('chev') }}</span><a href="{{ url_for('folder_section', fid=f.id, section='pages') }}" class="grow">Older pages</a><small>{{ f.pages|length }}</small></summary>
           <div class="tree-children">
             {% for p in f.pages %}
             <a href="{{ url_for('page', pid=p.id) }}" class="leaf" {% if current == 'page:' ~ p.id %}aria-current="page"{% endif %} title="{{ p.title }}">
