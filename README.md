@@ -33,7 +33,7 @@ The PCs' firewalls are off, so no rule is needed. If you turn the firewall on, a
 - **Admin → Batches:** enter batch `0521` and the names `nic, sam`. That creates the users `0521nic` and `0521sam`.
 - **Users:** trainees pick their name with no password. Admins need their PIN, and admin mode turns off after 2 hours idle.
 - **Admin → Who can edit:** give edit rights for a folder to a whole batch or to one user. Everyone can view everything.
-- **Folder overview:** each folder's overview has four sections (Background, Network diagram, Done by, Links to resources). Click a section's pen to edit just that section in place, then Save. The Network diagram section is a draw.io diagram only: drop a `.drawio` file on it (or click its **+** to choose one from your computer), then click the diagram to edit it in draw.io.
+- **Folder overview:** each folder's overview has Background and Network diagram, with Done by and Resources beside it. Click a section's pen to edit just that section in place, then Save. **Resources** holds files of any type up to 2 GB (e.g. packet captures) and links: use **Add file**, **Add link**, or drop files on it. The Network diagram section is a draw.io diagram only: drop a `.drawio` file on it (or click its **+** to choose one from your computer), then click the diagram to edit it in draw.io.
 - **Documentation and Slides:** each folder has both. Upload Word, Excel or PDF files to Documentation and PowerPoint or PDF files to Slides (click **Upload**, drop files on the section, or start a **New document** / **New presentation**). Click a file to open it in the browser: people with edit rights can edit it, everyone else can read it. Every save in the editor becomes a new version; the clock button lists them for download.
 - **Reflections:** anyone can add their own reflection to a folder. The author or an admin can edit or remove it.
 - **Older pages:** pages made before Documentation and Slides existed (such as the imported Emails or Audio pages) are listed at the bottom of their folder.
@@ -60,18 +60,31 @@ Imported `.drawio` files are listed under Links to resources (Diagram files). Wh
 
 ## Where things are saved (on PC1)
 
-The database and uploaded files live in the Docker volume `km-data`, which is kept when the container is rebuilt:
+**Files** are ordinary files in `C:\km\files`, so you can open them in Windows Explorer. Each KM folder has its own folder, with one subfolder per section, and files keep their real names:
 
 ```
-km.db        pages, history, users, rights, AAR (SQLite)
-uploads/     dropped files and draw.io diagrams (PNG with the diagram inside)
-secret.key   signs the "who am I" cookie; keep it private
+files\
+  RivalBlocks\
+    Overview\        network diagrams and pictures used in the overview
+    Documentation\   Word, Excel and PDF files
+      _versions\     earlier versions, e.g. "Lab notes (v1).docx"
+    Slides\          PowerPoint files (with their own _versions)
+    Resources\       anything else you add, e.g. packet captures
+    Reflections\     pictures or files added to reflections
+    Pages\           files from older pages
+  TikTubeYouTok\
+    ...
+  _Unused\           old files nothing in KM points to any more
 ```
 
-KM backs itself up when it starts and then every 24 hours, into `.\backup\` next to `docker-compose.yml`. Each backup is plain files: a dated `km-YYYYMMDD.db` and a copy of `uploads\`. To keep backups on another drive, change `./backup` in `docker-compose.yml` to e.g. `E:/km-backup`.
+If a name is already taken in a folder, the new file gets " (2)", " (3)" and so on. Don't rename or move files in there by hand: KM finds them by their path. To change a file, use KM (upload a new version, or edit it in the browser).
+
+**The database** (`km.db`: users, rights, overviews, AAR, which file is where) stays in the Docker volume `km-data`, because SQLite can be damaged on folders Docker Desktop shares from Windows. `secret.key`, which signs the "who am I" cookie, is there too.
+
+KM backs itself up when it starts and then every 24 hours, into `.\backup\` next to `docker-compose.yml`. Each backup is plain files: a dated `km-YYYYMMDD.db` and a copy of the files folder under `uploads\`. To keep backups on another drive, change `./backup` in `docker-compose.yml` to e.g. `E:/km-backup`.
 
 To restore, stop KM and copy a backup `.db` back in as `km.db`:
-`docker compose down`, then `docker compose run --rm -v C:/km/backup:/b km cp /b/km-YYYYMMDD.db /app/data/km.db`, then `docker compose up -d`. Uploaded files are restored the same way: copy `/b/uploads/.` into `/app/data/uploads/`.
+`docker compose down`, then `docker compose run --rm -v C:/km/backup:/b km cp /b/km-YYYYMMDD.db /app/data/km.db`, then `docker compose up -d`. Files are restored by copying the backup's `uploads\` contents back into `C:\km\files`.
 
 ## Check
 

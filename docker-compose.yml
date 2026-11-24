@@ -4,11 +4,13 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - km-data:/app/data      # database + uploaded files (kept when the container is rebuilt)
+      - km-data:/app/data      # the database (kept when the container is rebuilt)
+      - ./files:/files         # every uploaded file, as files/<Folder>/<Section>/<name>; open it in Windows Explorer
       - ./backup:/backup       # daily backup as plain files; change to e.g. E:/km-backup for another drive
       - ./import:/import       # put Google Drive downloads here, then: docker compose exec km python app.py import /import
     environment:
       KM_BACKUP: /backup
+      KM_FILES: /files
       ONLYOFFICE_JWT_SECRET: ${ONLYOFFICE_JWT_SECRET:?Create the .env file first; see "Documents and slides" in the README}
     restart: unless-stopped    # comes back after crashes and when Docker starts
 

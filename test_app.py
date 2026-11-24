@@ -44,7 +44,7 @@ assert post("/folders", name="Mine").status_code == 403
 # upload lands in data/uploads on the host; blocked where no rights
 r = c.post("/upload", data={"folder_id": "1", "file": (io.BytesIO(b"PDFDATA"), "manual.pdf")})
 url = r.get_json()["url"]
-assert (km.UPLOADS / url.removeprefix("/uploads/")).read_bytes() == b"PDFDATA"
+assert km.upload_path(url).read_bytes() == b"PDFDATA"
 assert c.get(url).data == b"PDFDATA"
 assert c.post("/upload", data={"folder_id": "2", "file": (io.BytesIO(b"x"), "a.txt")}).status_code == 403
 
@@ -75,8 +75,20 @@ post("/who", name="admin", pin="1234")
 post("/folders", name="Sections")
 sec = sqlite3.connect(km.DB_PATH).execute("SELECT id FROM folders WHERE name='Sections'").fetchone()[0]
 page_html = c.get(f"/folder/{sec}").data
-assert page_html.count(b'class="pen"') == 4 and b"Done by" in page_html and b"Links to resources" in page_html
-assert page_html.index(b"Who can edit") < page_html.index(b"<h2>Done by</h2>") < page_html.index(b"<h2>Links to resources</h2>")  # side column
+assert page_html.count(b'class="pen"') == 3 and b"Done by" in page_html and b"<h2>Resources</h2>" in page_html
+assert page_html.index(b"Who can edit") < page_html.index(b"<h2>Done by</h2>") < page_html.index(b"<h2>Resources</h2>")  # side column
+# Resources: any file (e.g. a packet capture) or a link; stored as <folder>/Resources/<name>
+c.post(f"/folder/{sec}/resources", data={"file": (io.BytesIO(b"\xd4\xc3\xb2\xa1"), "capture 1.pcap")}, content_type="multipart/form-data")
+c.post(f"/folder/{sec}/resources", data={"file": (io.BytesIO(b"x"), "capture 1.pcap")}, content_type="multipart/form-data")
+c.post(f"/folder/{sec}/resources", data={"title": "Wireshark docs", "url": "https://www.wireshark.org/docs/"})
+c.post(f"/folder/{sec}/resources", data={"title": "bad", "url": "javascript:alert(1)"})
+res = sqlite3.connect(km.DB_PATH).execute("SELECT kind, title, url FROM resources WHERE folder_id=? ORDER BY id", (sec,)).fetchall()
+assert [(k, t_) for k, t_, _ in res] == [("file", "capture 1.pcap"), ("file", "capture 1.pcap"), ("link", "Wireshark docs")], res
+assert km.upload_path(res[0][2]) == km.UPLOADS / "Sections" / "Resources" / "capture 1.pcap"
+assert km.upload_path(res[1][2]) == km.UPLOADS / "Sections" / "Resources" / "capture 1 (2).pcap"  # same name: numbered
+assert c.get(res[0][2]).data == b"\xd4\xc3\xb2\xa1"
+page_html = c.get(f"/folder/{sec}").data
+assert b"capture 1.pcap" in page_html and b"www.wireshark.org" in page_html
 r = post(f"/folder/{sec}/section/people", html="<ul><li>0521nic</li></ul>")
 assert r.get_json() == {"html": "<ul><li>0521nic</li></ul>"}
 post(f"/folder/{sec}/section/background", html="<p>Game studio</p>")
@@ -217,18 +229,22 @@ importer.main([drive, "--dry-run"])
 db = sqlite3.connect(km.DB_PATH)
 assert not db.execute("SELECT 1 FROM folders WHERE name='RivalBlocks'").fetchone()  # dry run changed nothing
 importer.main([drive])
-overview = lambda f: db.execute("SELECT p.html FROM pages p JOIN folders f ON f.id=p.folder_id WHERE f.name=? AND p.is_readme", (f,)).fetchone()[0]
-rival, tik = overview("RivalBlocks"), overview("TikTubeYouTok")
+resources_of = lambda f: " | ".join(r[0] for r in db.execute(
+    "SELECT r.title || ' ' || r.url FROM resources r JOIN folders f ON f.id=r.folder_id WHERE f.name=?", (f,)))
+rival, tik = resources_of("RivalBlocks"), resources_of("TikTubeYouTok")
 docs_in = lambda f: {r[0] for r in db.execute("SELECT d.kind || ':' || d.name FROM documents d JOIN folders f ON f.id=d.folder_id WHERE f.name=?", (f,))}
 assert "slides:RivalBlocks NV.pptx" in docs_in("RivalBlocks") and "slides:RivalBlocks NV.pptx" not in docs_in("TikTubeYouTok")
 assert "doc:NV Documentation (Ours).docx" in docs_in("TikTubeYouTok") and "slides:NV Slides 3.0 Final Final.pptx" in docs_in("RivalBlocks")
 assert "(Ours)" not in rival
-assert "network.drawio" in tik and "network.drawio" not in rival and "Diagram files" in tik and "network v2.drawio" in rival and "network v2.drawio" in tik
+assert "network.drawio " in tik and "network.drawio " not in rival and "network v2.drawio" in rival and "network v2.drawio" in tik
 assert "packetcapture-em1.pcap" in tik and "Feedback" not in tik + rival  # only the pcap comes from Archive
 assert "doc:NV Documentation (Other Group).docx" in docs_in("RivalBlocks") and "Emails" in rival
-link = lambda html_, name: re.search(r'href="([^"]+)">📎 ' + re.escape(name), html_).group(1)
 deck_urls = {r[0] for r in db.execute("SELECT url FROM documents WHERE name='NV Slides 3.0 Final Final.pptx'")}
 assert len(deck_urls) == 1  # in both folders' Slides, stored once
+pcap = db.execute("SELECT url FROM resources WHERE title='packetcapture-em1.pcap'").fetchone()[0]
+assert km.upload_path(pcap) == km.UPLOADS / "TikTubeYouTok" / "Resources" / "packetcapture-em1.pcap"  # stored logically
+assert km.upload_path(db.execute("SELECT url FROM documents WHERE name='RivalBlocks NV.pptx'").fetchone()[0]) == \
+    km.UPLOADS / "RivalBlocks" / "Slides" / "RivalBlocks NV.pptx"
 emails = db.execute("SELECT html FROM pages WHERE title='Emails'").fetchone()[0]
 assert "<h2>ASD</h2>" in emails and "Q3 close" in emails
 assert "<audio" in db.execute("SELECT html FROM pages WHERE title='Audio'").fetchone()[0]

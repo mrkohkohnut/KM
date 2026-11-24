@@ -3,9 +3,10 @@
     python app.py import /import              (a folder holding the Drive download zips, or the zips themselves)
     python app.py import /import --dry-run    (show where everything would go, change nothing)
 
-Every file is attached as it is; ROUTES below decides which KM folder(s) it goes to. Files in a nested
-Drive folder (e.g. Artefacts/Emails/...) go on a page named after that folder (Emails); the rest are
-listed on the KM folder's overview, with .drawio files under Network diagram. The only thing extracted
+Every file is attached as it is; ROUTES below decides which KM folder(s) it goes to. Word, Excel and PDF
+files go to Documentation, decks to Slides, other files (and .drawio files) to Resources. Files in a nested
+Drive folder (e.g. Artefacts/Emails/...) go on a page named after that folder (Emails), linked from Resources.
+Files are stored as <files>/<KM folder>/<section>/<name>. The only thing extracted
 is the AAR table (Observation / Reflection / Recommendation) in the main slide deck, which becomes an
 AAR entry. Running it again skips folders, pages and AARs that already exist.
 """
@@ -93,14 +94,14 @@ class Importer:
     def __init__(self, c, dry_run, main_deck):
         self.c, self.dry, self.main_deck, self.log, self.urls = c, dry_run, main_deck.lower(), [], {}
 
-    def url(self, path):
-        """Store each file once, even when it is linked from both folders."""
+    def url(self, path, folder, section):
+        """Store each file once, as <folder>/<section>/<name>, even when it is linked from both KM folders."""
         if path not in self.urls:
-            self.urls[path] = "#dry-run" if self.dry else km.store(path.name, lambda p: shutil.copyfile(path, p))
+            self.urls[path] = "#dry-run" if self.dry else km.store(path.name, lambda p: shutil.copyfile(path, p), folder, section)
         return self.urls[path]
 
-    def file_block(self, path):
-        url, ext = self.url(path), path.suffix.lower()
+    def file_block(self, path, folder, section):
+        url, ext = self.url(path, folder, section), path.suffix.lower()
         block = f'<p><a href="{url}">📎 {esc(path.name)}</a> <small>{size(path.stat().st_size)}</small></p>'
         if ext in km.IMAGES:
             block += f'<p><img src="{url}" alt="{esc(path.stem)}"></p>'
@@ -142,7 +143,7 @@ class Importer:
                 if self.c.execute("SELECT 1 FROM documents WHERE folder_id=? AND name=?", (fid, path.name)).fetchone():
                     self.log.append(f"    skip {km.KINDS[kind][0]} file (exists): {path.name}")
                 else:
-                    km.add_document(self.c, fid, kind, path.name, self.url(path), path.stat().st_size, WHO)
+                    km.add_document(self.c, fid, kind, path.name, self.url(path, name, km.KINDS[kind][0]), path.stat().st_size, WHO)
                     self.log.append(f"    {km.KINDS[kind][0]}: {path.name}")
             elif len(parts) <= 2:  # in the top Drive folder or directly in one of its subfolders
                 loose.append(path)
@@ -159,23 +160,22 @@ class Importer:
                     heading = where
                     if where:
                         body.append(f"<h2>{esc(where)}</h2>")
-                body.append(self.file_block(path))
+                body.append(self.file_block(path, name, "Pages"))
             made.append((title, km.write_page(self.c, None, fid, title, "\n".join(body), WHO)))
             self.log.append(f"    page: {title} ({len(entries)} file{'s' * (len(entries) != 1)})")
-        self.log.append(f"    overview: {len(diagrams)} diagrams, {len(loose)} files")
-        if row:
-            return
-        resources = ""
-        if made:
-            resources += "<h3>Artefacts</h3><ul>" + "".join(f'<li><a href="/page/{pid}">{esc(t)}</a></li>' for t, pid in made) + "</ul>"
-        if loose:
-            resources += "<h3>Files</h3>" + "".join(self.file_block(p) for p in loose)
-        if diagrams:  # the Network diagram pen offers these as a starting point
-            resources += "<h3>Diagram files</h3>" + "".join(self.file_block(p) for p in diagrams)
-        overview = km.sections_html({"background": f"<p>Imported from Google Drive on {datetime.now():%d %b %Y}. "
-                                                   "Click the pen to describe the scenario.</p>",
-                                     "resources": resources})
-        km.write_page(self.c, None, fid, "Overview", overview, WHO, is_readme=1)
+        # Resources: loose files and .drawio files (the Network diagram offers these), plus links to the artefact pages
+        for path in loose + diagrams:
+            if self.c.execute("SELECT 1 FROM resources WHERE folder_id=? AND title=?", (fid, path.name)).fetchone():
+                self.log.append(f"    skip resource (exists): {path.name}")
+                continue
+            km.add_resource(self.c, fid, "file", path.name, self.url(path, name, "Resources"), path.stat().st_size, WHO)
+            self.log.append(f"    resource: {path.name}")
+        for title, pid in made:
+            km.add_resource(self.c, fid, "link", title, f"/page/{pid}", None, WHO)
+        if not row:
+            overview = km.sections_html({"background": f"<p>Imported from Google Drive on {datetime.now():%d %b %Y}. "
+                                                       "Click the pen to describe the scenario.</p>"})
+            km.write_page(self.c, None, fid, "Overview", overview, WHO, is_readme=1)
 
 
 def unpack(sources, tmp):

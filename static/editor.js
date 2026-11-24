@@ -358,7 +358,7 @@ function diagramSection(section) {
   // buttons for .drawio files already attached to the folder (e.g. from the Drive import)
   const drop = body.querySelector('.diagram-drop .inline');
   const seen = new Set();
-  document.querySelectorAll('.overview a[href$=".drawio"]').forEach(a => {
+  document.querySelectorAll('#resources a[href$=".drawio"], .overview a[href$=".drawio"]').forEach(a => {
     const href = a.getAttribute('href');
     if (!drop || seen.has(href)) return;
     seen.add(href);

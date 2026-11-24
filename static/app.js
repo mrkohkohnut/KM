@@ -54,7 +54,7 @@ document.querySelectorAll('.drawio-sheets').forEach(setupSheets);
 // Documentation and Slides: picking files uploads them straight away; files can also be dropped on the card.
 document.querySelectorAll('.upload-form input[type=file]').forEach(input =>
   input.addEventListener('change', () => input.files.length && input.form.submit()));
-document.querySelectorAll('.docs[data-upload]').forEach(card => {
+document.querySelectorAll('.docs[data-upload], #resources[data-upload]').forEach(card => {
   card.addEventListener('dragover', e => {
     if (!e.dataTransfer.types.includes('Files')) return;
     e.preventDefault();

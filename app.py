@@ -16,7 +16,6 @@ import sys
 import time
 import urllib.parse
 import urllib.request
-import uuid
 from itertools import groupby
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -24,11 +23,11 @@ from pathlib import Path
 from flask import (Flask, abort, flash, g, redirect, render_template, request,
                    send_from_directory, session, url_for)
 from werkzeug.security import check_password_hash, generate_password_hash
-from werkzeug.utils import secure_filename
 
 BASE = Path(__file__).resolve().parent
 DATA = Path(os.environ.get("KM_DATA", BASE / "data"))
-UPLOADS = DATA / "uploads"
+UPLOADS = Path(os.environ.get("KM_FILES", DATA / "uploads"))  # all files, laid out as <Folder>/<Section>/<name>
+OLD_UPLOADS = DATA / "uploads"  # where files lived before KM_FILES existed
 DB_PATH = DATA / "km.db"
 PORT = int(os.environ.get("KM_PORT", 8080))
 ADMIN_IDLE = 2 * 60 * 60  # admin mode drops back after 2h idle (shared PCs)
@@ -56,6 +55,10 @@ CREATE TABLE IF NOT EXISTS perms(folder_id INTEGER NOT NULL, subject TEXT NOT NU
 CREATE TABLE IF NOT EXISTS aar_entries(
   id INTEGER PRIMARY KEY, title TEXT NOT NULL, body TEXT NOT NULL,
   author TEXT NOT NULL, created_at TEXT NOT NULL, edited_by TEXT, edited_at TEXT);
+-- Resources: files (e.g. packet captures) and links listed beside a folder's overview
+CREATE TABLE IF NOT EXISTS resources(
+  id INTEGER PRIMARY KEY, folder_id INTEGER NOT NULL REFERENCES folders(id), kind TEXT NOT NULL,
+  title TEXT NOT NULL, url TEXT NOT NULL, size INTEGER, added_by TEXT, added_at TEXT);
 -- Documentation and Slides: office files opened in OnlyOffice; every save is a new version
 CREATE TABLE IF NOT EXISTS documents(
   id INTEGER PRIMARY KEY, folder_id INTEGER NOT NULL REFERENCES folders(id), kind TEXT NOT NULL,
@@ -193,7 +196,7 @@ app.config.update(
     SECRET_KEY=init_data(),
     SESSION_COOKIE_SAMESITE="Lax",  # blocks other websites from posting to KM with your cookie
     PERMANENT_SESSION_LIFETIME=timedelta(days=365),
-    MAX_CONTENT_LENGTH=500 * 1024 * 1024,
+    MAX_CONTENT_LENGTH=2 * 1024 ** 3,  # 2 GB, e.g. packet captures
 )
 
 
@@ -278,6 +281,19 @@ def when(s):
 app.jinja_env.globals.update(can_edit=can_edit, is_admin=is_admin,
                              spine=lambda fid: SPINES[(fid - 1) % len(SPINES)])
 app.jinja_env.filters["when"] = when
+
+
+def filesize(n):
+    if n is None:
+        return ""
+    for unit in ("B", "KB", "MB"):
+        if n < 1024:
+            return f"{n:.0f} {unit}"
+        n /= 1024
+    return f"{n:.1f} GB"
+
+
+app.jinja_env.filters["filesize"] = filesize
 
 
 @app.route("/setup", methods=["GET", "POST"])
@@ -384,7 +400,8 @@ def folder(fid):
         "SELECT subject FROM perms WHERE folder_id=? ORDER BY subject", (fid,))]
     documents = db().execute("SELECT * FROM documents WHERE folder_id=? ORDER BY name COLLATE NOCASE", (fid,)).fetchall()
     reflections = db().execute("SELECT * FROM reflections WHERE folder_id=? ORDER BY id", (fid,)).fetchall()
-    return render_template("folder.html", folder=f, readme=readme, pages=pages, editors=editors,
+    resources = db().execute("SELECT * FROM resources WHERE folder_id=? ORDER BY kind, title COLLATE NOCASE", (fid,)).fetchall()
+    return render_template("folder.html", resources=resources, folder=f, readme=readme, pages=pages, editors=editors,
                            folders=all_folders(), links=page_links(readme["html"]),
                            sections=overview_sections(readme["html"]), SECTIONS=SECTIONS,
                            documents=documents, reflections=reflections, KINDS=KINDS)
@@ -495,6 +512,7 @@ def delete_folder(fid):
     d.execute("DELETE FROM document_versions WHERE document_id IN (SELECT id FROM documents WHERE folder_id=?)", (fid,))
     d.execute("DELETE FROM documents WHERE folder_id=?", (fid,))
     d.execute("DELETE FROM reflections WHERE folder_id=?", (fid,))
+    d.execute("DELETE FROM resources WHERE folder_id=?", (fid,))
     d.execute("DELETE FROM folders WHERE id=?", (fid,))
     d.commit()
     flash(f"Deleted the folder {f['name']!r}.")
@@ -535,18 +553,45 @@ def upload():
     f = request.files.get("file")
     if not f or not f.filename:
         abort(400, "No file.")
-    return {"url": store(f.filename, f.save), "name": f.filename,
+    section = request.form.get("section", "Other")
+    return {"url": store(f.filename, f.save, folder_name(request.form.get("folder_id", type=int)), section), "name": f.filename,
             "image": Path(f.filename).suffix.lower() in IMAGES}
 
 
-def store(filename, write):
-    """Save a file under data/uploads/YYYY/MM; write(path) does the writing. Returns its URL."""
-    name = secure_filename(filename) or "file"
-    sub = datetime.now().strftime("%Y/%m")
-    (UPLOADS / sub).mkdir(parents=True, exist_ok=True)
-    stored = f"{uuid.uuid4().hex[:8]}-{name}"
-    write(UPLOADS / sub / stored)
-    return f"/uploads/{sub}/{stored}"
+FILE_SECTIONS = {"Overview", "Documentation", "Slides", "Resources", "Reflections", "Pages", "Other"}
+
+
+def safe_name(name, fallback="file"):
+    """A file or folder name that is safe on Windows and Linux, keeping spaces and capitals."""
+    name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "", str(name)).strip().strip(".")
+    return name[:150] or fallback
+
+
+def unique_path(folder, name):
+    """folder/name, or folder/name (2), (3)... if that is taken."""
+    path, stem, suffix, n = folder / name, Path(name).stem, Path(name).suffix, 2
+    while path.exists():
+        path, n = folder / f"{stem} ({n}){suffix}", n + 1
+    return path
+
+
+def url_for_file(path):
+    return "/uploads/" + urllib.parse.quote(path.relative_to(UPLOADS).as_posix())
+
+
+def store(filename, write, folder=None, section="Other"):
+    """Save a file as <files>/<Folder>/<Section>/<name> (name kept, " (2)" added if taken); write(path) does the
+    writing. folder is a folder's name (None: _General). Returns the file's URL."""
+    where = UPLOADS / safe_name(folder or "_General") / safe_name(section if section in FILE_SECTIONS else "Other")
+    where.mkdir(parents=True, exist_ok=True)
+    path = unique_path(where, safe_name(Path(filename).name))
+    write(path)
+    return url_for_file(path)
+
+
+def folder_name(fid, c=None):
+    row = (c or db()).execute("SELECT name FROM folders WHERE id=?", (fid,)).fetchone()
+    return row["name"] if row else None
 
 
 @app.route("/uploads/<path:path>")
@@ -617,8 +662,13 @@ def add_document(c, folder_id, kind, name, url, size, who):
     return did
 
 
+def file_rel(url):
+    """The file's path under the files folder, from its /uploads/... URL."""
+    return urllib.parse.unquote(url.removeprefix("/uploads/"))
+
+
 def upload_path(url):
-    return UPLOADS / url.removeprefix("/uploads/")
+    return UPLOADS / file_rel(url)
 
 
 @app.post("/folder/<int:fid>/documents/<kind>")
@@ -633,7 +683,7 @@ def add_documents(fid, kind):
     if request.form.get("blank"):
         name = f"Untitled {'document' if kind == 'doc' else 'presentation'}.{blank_ext}"
         src = BASE / "static" / "blank" / f"blank.{blank_ext}"
-        url = store(name, lambda p: shutil.copyfile(src, p))
+        url = store(name, lambda p: shutil.copyfile(src, p), folder_name(fid), KINDS[kind][0])
         add_document(db(), fid, kind, name, url, src.stat().st_size, g.user["name"])
         added = 1
     for f in request.files.getlist("file"):
@@ -642,7 +692,7 @@ def add_documents(fid, kind):
         if ext(f.filename) not in allowed:
             refused.append(f.filename)
             continue
-        url = store(f.filename, f.save)
+        url = store(f.filename, f.save, folder_name(fid), KINDS[kind][0])
         add_document(db(), fid, kind, f.filename, url, upload_path(url).stat().st_size, g.user["name"])
         added += 1
     db().commit()
@@ -683,7 +733,7 @@ def document(did):
 @app.route("/document/<int:did>/download")
 def document_download(did):
     d = get_document(did)
-    return send_from_directory(UPLOADS, d["url"].removeprefix("/uploads/"), as_attachment=True, download_name=d["name"])
+    return send_from_directory(UPLOADS, file_rel(d["url"]), as_attachment=True, download_name=d["name"])
 
 
 @app.route("/document/<int:did>/versions")
@@ -697,7 +747,7 @@ def document_versions(did):
 def document_version(did, vid):
     d = get_document(did)
     v = get_or_404("SELECT * FROM document_versions WHERE id=? AND document_id=?", vid, did)
-    return send_from_directory(UPLOADS, v["url"].removeprefix("/uploads/"), as_attachment=True,
+    return send_from_directory(UPLOADS, file_rel(v["url"]), as_attachment=True,
                                download_name=f"{Path(d['name']).stem} (v{v['version']}){Path(d['name']).suffix}")
 
 
@@ -718,7 +768,7 @@ def onlyoffice_file(did):
     if not hmac.compare_digest(request.args.get("t", ""), file_token("file", did)):
         abort(403)
     d = get_or_404("SELECT * FROM documents WHERE id=?", did)
-    return send_from_directory(UPLOADS, d["url"].removeprefix("/uploads/"), download_name=d["name"])
+    return send_from_directory(UPLOADS, file_rel(d["url"]), download_name=d["name"])
 
 
 @app.post("/onlyoffice/callback/<int:did>")
@@ -742,14 +792,59 @@ def onlyoffice_callback(did):
     with urllib.request.urlopen(fetch_url, timeout=120) as r:
         data = r.read()
     who = (payload.get("users") or [None])[0] or "OnlyOffice"
-    url = store(d["name"], lambda p: p.write_bytes(data))
+    current = upload_path(d["url"])
+    keep = current.parent / "_versions"  # the version being replaced keeps a numbered copy here
+    keep.mkdir(exist_ok=True)
+    old = unique_path(keep, f"{current.stem} (v{d['version']}){current.suffix}")
+    if current.exists():
+        current.replace(old)
+        db().execute("UPDATE document_versions SET url=? WHERE document_id=? AND version=?",
+                     (url_for_file(old), did, d["version"]))
+    current.write_bytes(data)
     t, version = now(), d["version"] + 1
-    db().execute("UPDATE documents SET url=?, size=?, version=?, updated_by=?, updated_at=? WHERE id=?",
-                 (url, len(data), version, who, t, did))
+    db().execute("UPDATE documents SET size=?, version=?, updated_by=?, updated_at=? WHERE id=?",
+                 (len(data), version, who, t, did))
     db().execute("INSERT INTO document_versions(document_id, version, url, size, saved_by, saved_at) VALUES (?,?,?,?,?,?)",
-                 (did, version, url, len(data), who, t))
+                 (did, version, d["url"], len(data), who, t))
     db().commit()
     return {"error": 0}
+
+
+# ---------- Resources: files and links beside the overview ----------
+
+def add_resource(c, fid, kind, title, url, size, who):
+    c.execute("INSERT INTO resources(folder_id, kind, title, url, size, added_by, added_at) VALUES (?,?,?,?,?,?,?)",
+              (fid, kind, title, url, size, who, now()))
+
+
+@app.post("/folder/<int:fid>/resources")
+def add_resources(fid):
+    """Upload files (any type, up to 2 GB) or add a link (title + URL)."""
+    get_or_404("SELECT id FROM folders WHERE id=?", fid)
+    require_edit(fid)
+    for f in request.files.getlist("file"):
+        if f.filename:
+            url = store(f.filename, f.save, folder_name(fid), "Resources")
+            add_resource(db(), fid, "file", f.filename, url, upload_path(url).stat().st_size, g.user["name"])
+    link = request.form.get("url", "").strip()
+    if link:
+        if not re.match(r"(https?://|/)\S+$", link) or link.startswith("//"):
+            flash("A link must start with http://, https:// or / (a page in KM).")
+        else:
+            add_resource(db(), fid, "link", request.form.get("title", "").strip() or link, link, None, g.user["name"])
+    db().commit()
+    if request.headers.get("X-Requested-With") == "fetch":
+        return {"ok": 1}
+    return redirect(url_for("folder", fid=fid) + "#resources")
+
+
+@app.post("/resource/<int:rid>/delete")
+def delete_resource(rid):
+    r = get_or_404("SELECT * FROM resources WHERE id=?", rid)
+    require_edit(r["folder_id"])
+    db().execute("DELETE FROM resources WHERE id=?", (rid,))  # the file stays on disk
+    db().commit()
+    return redirect(url_for("folder", fid=r["folder_id"]) + "#resources")
 
 
 # ---------- Reflections: anyone can add their own; authors and admins can change or remove them ----------
@@ -991,6 +1086,91 @@ def backup_daily(dest):
         time.sleep(24 * 60 * 60)
 
 
+# ---------- start-up migrations (each does nothing once done) ----------
+
+def move_old_files(c):
+    """Files from before KM_FILES (inside the database volume) move to the files folder, same relative paths."""
+    if UPLOADS.resolve() == OLD_UPLOADS.resolve() or not OLD_UPLOADS.exists():
+        return
+    for src in [p for p in OLD_UPLOADS.rglob("*") if p.is_file()]:
+        dest = UPLOADS / src.relative_to(OLD_UPLOADS)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if not dest.exists():
+            shutil.move(str(src), dest)
+
+
+def file_references(c):
+    """(url, folder id, section, name to use) for every file KM points at, most specific first."""
+    refs = []
+    for d in c.execute("SELECT d.url, d.folder_id, d.kind, d.name FROM documents d"):
+        refs.append((d["url"], d["folder_id"], KINDS[d["kind"]][0], d["name"]))
+    for v in c.execute("""SELECT v.url, d.folder_id, d.kind, d.name, v.version FROM document_versions v
+                          JOIN documents d ON d.id=v.document_id"""):
+        refs.append((v["url"], v["folder_id"], KINDS[v["kind"]][0] + "/_versions",
+                     f"{Path(v['name']).stem} (v{v['version']}){Path(v['name']).suffix}"))
+    for r in c.execute("SELECT url, folder_id, title FROM resources WHERE kind='file'"):
+        refs.append((r["url"], r["folder_id"], "Resources", r["title"]))
+    found = r'/uploads/[^"\'<>\s)]+'
+    for p in c.execute("SELECT html, folder_id, is_readme FROM pages"):
+        refs += [(u, p["folder_id"], "Overview" if p["is_readme"] else "Pages", None) for u in re.findall(found, p["html"])]
+    for r in c.execute("SELECT html, folder_id FROM reflections"):
+        refs += [(u, r["folder_id"], "Reflections", None) for u in re.findall(found, r["html"])]
+    for r in c.execute("SELECT r.html, p.folder_id, p.is_readme FROM revisions r JOIN pages p ON p.id=r.page_id"):
+        refs += [(u, r["folder_id"], "Overview" if r["is_readme"] else "Pages", None) for u in re.findall(found, r["html"])]
+    return refs
+
+
+def reorganise_files(c):
+    """Files saved the old way (YYYY/MM/<random>-<name>) move to <Folder>/<Section>/<name> and every link to them
+    is rewritten. Files nothing points at go to _Unused."""
+    old = [p for p in UPLOADS.glob("[0-9][0-9][0-9][0-9]/[0-9][0-9]/*") if p.is_file()]
+    if not old:
+        return
+    places = {}
+    for url, fid, section, name in file_references(c):
+        places.setdefault(file_rel(url), (fid, section, name))
+    folders = {r["id"]: r["name"] for r in c.execute("SELECT id, name FROM folders")}
+    for path in old:
+        rel = path.relative_to(UPLOADS).as_posix()
+        fid, section, name = places.get(rel, (None, None, None))
+        original = re.sub(r"^[0-9a-f]{8}-", "", path.name)
+        top = safe_name(folders.get(fid, "_Unused")) if fid else "_Unused"
+        where = UPLOADS / top / Path(*[safe_name(s) for s in section.split("/")]) if section else UPLOADS / "_Unused"
+        where.mkdir(parents=True, exist_ok=True)
+        dest = unique_path(where, safe_name(name or original))
+        path.replace(dest)
+        old_url, new_url = "/uploads/" + rel, url_for_file(dest)
+        for table, col in (("pages", "html"), ("revisions", "html"), ("reflections", "html"), ("documents", "url"),
+                           ("document_versions", "url"), ("resources", "url")):
+            c.execute(f"UPDATE {table} SET {col}=replace({col}, ?, ?) WHERE {col} LIKE ?", (old_url, new_url, f"%{old_url}%"))
+    for d in sorted((p for p in UPLOADS.glob("[0-9][0-9][0-9][0-9]/**") if p.is_dir()), reverse=True):
+        if not any(d.iterdir()):
+            d.rmdir()
+    for d in UPLOADS.glob("[0-9][0-9][0-9][0-9]"):
+        if d.is_dir() and not any(d.iterdir()):
+            d.rmdir()
+
+
+def resources_from_overviews(c):
+    """Overviews used to keep files and links as text under "Links to resources"; they become Resources items."""
+    for p in c.execute("SELECT id, folder_id, html, updated_by FROM pages WHERE is_readme=1").fetchall():
+        sections = overview_sections(p["html"])
+        if not sections["resources"]:
+            continue
+        for link in page_links(sections["resources"]):
+            size = upload_path(link["href"]).stat().st_size if link["kind"] == "file" and upload_path(link["href"]).exists() else None
+            add_resource(c, p["folder_id"], "file" if link["kind"] == "file" else "link", link["label"], link["href"],
+                         size, p["updated_by"] or "KM")
+        sections["resources"] = ""
+        write_page(c, p["id"], p["folder_id"], "Overview", sections_html(sections), "KM")
+
+
+with connect() as _c:
+    move_old_files(_c)
+    resources_from_overviews(_c)
+    reorganise_files(_c)
+
+
 if __name__ == "__main__":
     if sys.argv[1:2] == ["backup"]:
         backup(sys.argv[2] if len(sys.argv) > 2 else BASE / "backup")
@@ -1005,4 +1185,4 @@ if __name__ == "__main__":
             threading.Thread(target=backup_daily, args=(os.environ["KM_BACKUP"],), daemon=True).start()
         logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
         print(f"KM running on http://0.0.0.0:{PORT}  (other PCs: http://<this PC's IP>:{PORT})")
-        serve(app, host="0.0.0.0", port=PORT, threads=8)
+        serve(app, host="0.0.0.0", port=PORT, threads=8, max_request_body_size=2 * 1024 ** 3)

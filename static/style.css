@@ -428,3 +428,23 @@ main.docpage .explorer-side { overflow: auto; }
 @media (max-width: 900px) { main.docpage { grid-template-columns: minmax(0, 1fr); } main.docpage .explorer-side { display: none; } }
 main.side { grid-template-columns: 250px minmax(0, 1fr); max-width: 1200px; }
 @media (max-width: 760px) { main.side { grid-template-columns: minmax(0, 1fr); } main.side .explorer-side { order: 2; } }
+
+/* Resources (side column) */
+.side-resources > h2 { margin: 0 4px 8px; font-size: 13px; color: var(--sub); }
+.resrow { padding: 0 6px 0 0; gap: 2px; }
+.resrow:hover { background: none; }
+.resmain { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 8px 6px 8px 12px; color: var(--text); }
+.resmain:hover { text-decoration: none; }
+.resmain:hover .rowtext > span:first-child { color: var(--accent); }
+.resmain .rowtext > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.res-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; align-items: flex-start; }
+.res-actions .button { padding: 6px 12px; font-size: 13px; }
+.res-actions form { margin: 0; }
+.add-link { width: 100%; }
+.add-link > summary { list-style: none; display: inline-flex; cursor: pointer; }
+.add-link > summary::-webkit-details-marker { display: none; }
+.add-link[open] { background: var(--card); border-radius: 12px; padding: 10px; box-shadow: var(--shadow); }
+.add-link .stack { margin-top: 10px; gap: 8px; }
+.res-actions:has(.add-link[open]) > form { order: 2; }
+#resources.dragging .group { outline: 2px dashed var(--accent); outline-offset: 2px; }
+#resources.busy { opacity: .5; pointer-events: none; }

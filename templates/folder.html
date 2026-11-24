@@ -54,7 +54,7 @@
     </div>
     {% if is_admin() %}<a class="more" href="/admin#perms">Change edit rights</a>{% endif %}
   </section>
-  {% for key in ('people', 'resources') %}
+  {% for key in ('people',) %}
   <section class="ov-section side" id="{{ key }}" data-folder="{{ folder.id }}" data-empty="{{ '' if sections[key] else '1' }}"
            {% if can_edit(folder.id) %}data-save="{{ url_for('save_section', fid=folder.id, key=key) }}"{% endif %}>
     <div class="ov-head">
@@ -64,6 +64,41 @@
     <div class="ov-body content">{{ sections[key]|safe if sections[key] else '<p class="note">Nothing here yet.</p>'|safe }}</div>
   </section>
   {% endfor %}
+  <section class="side-resources" id="resources" {% if can_edit(folder.id) %}data-upload="{{ url_for('add_resources', fid=folder.id) }}"{% endif %}>
+    <h2>Resources</h2>
+    <div class="group">
+      {% for r in resources %}
+      {% set web = r.kind == 'link' and not r.url.startswith('/') %}
+      <div class="row resrow">
+        <a class="resmain" href="{{ r.url }}" {% if web %}target="_blank" rel="noopener"{% endif %} title="{{ r.title }}">
+          <span class="rowicon {{ 'file' if r.kind == 'file' else ('web' if web else 'internal') }}">{{ icon('clip' if r.kind == 'file' else ('globe' if web else 'link')) }}</span>
+          <span class="rowtext"><span>{{ r.title }}</span><small>{{ r.size|filesize if r.kind == 'file' else (r.url.split('/')[2] if web else 'In KM') }}</small></span>
+        </a>
+        {% if can_edit(folder.id) %}
+        <form method="post" action="{{ url_for('delete_resource', rid=r.id) }}" data-confirm="Remove {{ r.title }} from Resources?">
+          <button class="iconbtn danger" title="Remove {{ r.title }}" aria-label="Remove {{ r.title }}">{{ icon('trash') }}</button>
+        </form>
+        {% endif %}
+      </div>
+      {% else %}<div class="row"><span class="rowtext note">No files or links yet.</span></div>{% endfor %}
+    </div>
+    {% if can_edit(folder.id) %}
+    <div class="res-actions">
+      <form method="post" action="{{ url_for('add_resources', fid=folder.id) }}" enctype="multipart/form-data" class="upload-form">
+        <label class="button plain">{{ icon('upload') }}Add file<input type="file" name="file" multiple hidden></label>
+      </form>
+      <details class="add-link">
+        <summary class="button plain">{{ icon('link') }}Add link</summary>
+        <form method="post" action="{{ url_for('add_resources', fid=folder.id) }}" class="stack">
+          <input name="title" placeholder="Title" aria-label="Link title">
+          <input name="url" placeholder="https://… or /folder/1" required aria-label="Link address">
+          <button>Add link</button>
+        </form>
+      </details>
+    </div>
+    <p class="note">Or drop files here, up to 2 GB each.</p>
+    {% endif %}
+  </section>
   {% if is_admin() %}
   <section>
     <h2>Admin</h2>
