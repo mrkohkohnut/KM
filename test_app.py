@@ -75,6 +75,7 @@ post("/folders", name="Sections")
 sec = sqlite3.connect(km.DB_PATH).execute("SELECT id FROM folders WHERE name='Sections'").fetchone()[0]
 page_html = c.get(f"/folder/{sec}").data
 assert page_html.count(b'class="pen"') == 4 and b"Done by" in page_html and b"Links to resources" in page_html
+assert page_html.index(b"Who can edit") < page_html.index(b"<h2>Done by</h2>") < page_html.index(b"<h2>Links to resources</h2>")  # side column
 r = post(f"/folder/{sec}/section/people", html="<ul><li>0521nic</li></ul>")
 assert r.get_json() == {"html": "<ul><li>0521nic</li></ul>"}
 post(f"/folder/{sec}/section/background", html="<p>Game studio</p>")

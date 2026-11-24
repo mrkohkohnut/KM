@@ -343,3 +343,15 @@ h1.large + .card { margin-top: 18px; }
 .drawio-sheets img { display: block; max-width: 100%; border-radius: 10px; }
 .ov-tools { display: flex; gap: 6px; }
 .pen.remove { color: var(--danger); }
+/* Done by: in the side column, under Who can edit */
+aside .ov-section.side .ov-head { margin: 0 4px 8px; }
+aside .ov-section.side .ov-head h2 { font-size: 13px; font-weight: 600; color: var(--sub); margin: 0; }
+aside .ov-section.side .pen { width: 26px; height: 26px; }
+aside .ov-section.side .ov-body { background: var(--card); border-radius: 12px; box-shadow: var(--shadow); padding: 10px 14px; font-size: 15px; line-height: 1.5; }
+aside .ov-section.side .ov-body > * { margin: 4px 0; }
+aside .ov-section.side .ov-body ul, aside .ov-section.side .ov-body ol { padding-left: 20px; }
+aside .ov-section.side.editing { margin: 0 0 26px; padding: 10px; }
+aside .ov-section.side .section-editor { padding-left: 34px; }
+aside .ov-section.side .ov-body h3 { font-size: 13px; color: var(--sub); margin: 10px 0 2px; }
+aside .ov-section.side .ov-body img, aside .ov-section.side .ov-body audio { max-width: 100%; }
+aside .ov-section.side .ov-body pre { font-size: 12px; max-height: 200px; }
