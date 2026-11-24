@@ -1,4 +1,4 @@
-"""KM - a small knowledge base for training batches.
+"""KM - a small knowledge base for training groups.
 
 Run:     python app.py              (serves on http://0.0.0.0:8080)
 Backup:  python app.py backup D:\\km-backup
@@ -49,7 +49,8 @@ CREATE TABLE IF NOT EXISTS batches(id TEXT PRIMARY KEY, created_at TEXT);
 CREATE TABLE IF NOT EXISTS users(
   name TEXT PRIMARY KEY, display_name TEXT, batch_id TEXT REFERENCES batches(id),
   is_admin INTEGER NOT NULL DEFAULT 0, pin_hash TEXT);
--- subject is a username ("0521nic") or a whole batch ("batch:0521")
+-- trainees belong to a group (stored as "batches"); usernames are group-name, e.g. "me4a-nic"
+-- subject is a username ("me4a-nic") or a whole group ("batch:me4a")
 CREATE TABLE IF NOT EXISTS perms(folder_id INTEGER NOT NULL, subject TEXT NOT NULL, PRIMARY KEY(folder_id, subject));
 
 CREATE TABLE IF NOT EXISTS aar_entries(
@@ -1068,9 +1069,9 @@ def admin():
 @app.post("/admin/batch")
 def admin_batch():
     require_admin()
-    batch = clean_name(request.form["batch"])
+    batch = re.sub(r"[^a-z0-9-]", "", request.form["batch"].lower()).strip("-")  # e.g. me4a, me4-2
     if not batch:
-        flash("Batch number must be letters/numbers, e.g. 0521.")
+        flash("A group name must be letters or numbers, e.g. ME4A.")
         return redirect(url_for("admin"))
     d = db()
     d.execute("INSERT OR IGNORE INTO batches(id, created_at) VALUES (?,?)", (batch, now()))
@@ -1079,12 +1080,12 @@ def admin_batch():
         n = clean_name(raw)
         if not n:
             continue
-        username = batch + n
+        username = f"{batch}-{n}"
         cur = d.execute("INSERT OR IGNORE INTO users(name, display_name, batch_id) VALUES (?,?,?)",
                         (username, raw.strip(), batch))
         (added if cur.rowcount else skipped).append(username)
     d.commit()
-    flash(f"Batch {batch}: added {', '.join(added) or 'nobody'}."
+    flash(f"Group {batch.upper()}: added {', '.join(added) or 'nobody'}."
           + (f" Already existed: {', '.join(skipped)}." if skipped else ""))
     return redirect(url_for("admin"))
 
@@ -1215,7 +1216,22 @@ def resources_from_overviews(c):
         write_page(c, p["id"], p["folder_id"], "Overview", sections_html(sections), "KM")
 
 
+def rename_old_usernames(c):
+    """Usernames used to be group+name ("0521nic"); they become group-name ("0521-nic"), and so do the names on
+    everything they wrote or were given. AAR entries keep the name they were written under: they can't be changed."""
+    for u in c.execute("SELECT name, display_name, batch_id FROM users WHERE batch_id IS NOT NULL").fetchall():
+        part = clean_name(u["display_name"] or "")
+        old, new = u["name"], f"{u['batch_id']}-{part}"
+        if not part or old != u["batch_id"] + part or c.execute("SELECT 1 FROM users WHERE name=?", (new,)).fetchone():
+            continue
+        c.execute("UPDATE users SET name=? WHERE name=?", (new, old))
+        for table, col in (("perms", "subject"), ("pages", "updated_by"), ("revisions", "saved_by"), ("reflections", "author"),
+                           ("documents", "updated_by"), ("document_versions", "saved_by"), ("resources", "added_by")):
+            c.execute(f"UPDATE {table} SET {col}=? WHERE {col}=?", (new, old))
+
+
 with connect() as _c:
+    rename_old_usernames(_c)
     move_old_files(_c)
     resources_from_overviews(_c)
     reorganise_files(_c)

@@ -50,7 +50,7 @@
     <h2>Who can edit</h2>
     <div class="group">
       <div class="row"><span class="rowicon person">{{ icon('person') }}</span><span class="rowtext">Admins</span></div>
-      {% for e in editors %}<div class="row"><span class="rowicon person">{{ icon('person') }}</span><span class="rowtext">{{ e|replace('batch:', 'Batch ') }}</span></div>{% endfor %}
+      {% for e in editors %}<div class="row"><span class="rowicon person">{{ icon('person') }}</span><span class="rowtext">{{ 'Group ' ~ e[6:]|upper if e.startswith('batch:') else e }}</span></div>{% endfor %}
     </div>
     {% if is_admin() %}<a class="more" href="/admin#perms">Change edit rights</a>{% endif %}
   </section>

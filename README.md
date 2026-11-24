@@ -1,6 +1,6 @@
 # KM
 
-A small knowledge base for training batches. It runs on one Windows PC, and the other PCs on the network use it through a browser.
+A small knowledge base for training groups. It runs on one Windows PC, and the other PCs on the network use it through a browser.
 
 ## Install on the host PC (PC1) with Docker
 
@@ -30,9 +30,9 @@ The PCs' firewalls are off, so no rule is needed. If you turn the firewall on, a
 
 ## How it's used
 
-- **Admin → Batches:** enter batch `0521` and the names `nic, sam`. That creates the users `0521nic` and `0521sam`.
+- **Admin → Groups:** enter the group `ME4A` and the names `nic, sam`. That creates the users `me4a-nic` and `me4a-sam` (usernames are group-name). Accounts made before groups existed (e.g. `0521nic`) were renamed to this format (`0521-nic`).
 - **Users:** trainees pick their name with no password. Admins need their PIN, and admin mode turns off after 2 hours idle.
-- **Admin → Who can edit:** give edit rights for a folder to a whole batch or to one user. Everyone can view everything.
+- **Admin → Who can edit:** give edit rights for a folder to a whole group or to one user. Everyone can view everything.
 - **Folder overview:** each folder's overview has Background and Network diagram, with Done by and Resources beside it. Click a section's pen to edit just that section in place, then Save. **Resources** holds files of any type up to 2 GB (e.g. packet captures) and links: use **Add file**, **Add link**, or drop files on it. The Network diagram section is a draw.io diagram only: drop a `.drawio` file on it (or click its **+** to choose one from your computer), then click the diagram to edit it in draw.io.
 - **Documentation and Slides:** each folder has both. Upload Word, Excel or PDF files to Documentation and PowerPoint or PDF files to Slides (click **Upload**, drop files on the section, or start a **New document** / **New presentation**). Click a file to open it in the browser: people with edit rights can edit it, everyone else can read it. Every save in the editor becomes a new version; the clock button lists them for download.
 - **Reflections:** anyone can add their own reflection to a folder. The author or an admin can edit or remove it.

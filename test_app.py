@@ -18,7 +18,11 @@ assert post("/who", name="admin", pin="1234").status_code == 302
 post("/admin/batch", batch="0521", names="Nic, sam\nAlex")
 post("/admin/batch", batch="0521", names="nic")  # duplicate is skipped
 names = [r[0] for r in sqlite3.connect(km.DB_PATH).execute("SELECT name FROM users WHERE batch_id='0521' ORDER BY name")]
-assert names == ["0521alex", "0521nic", "0521sam"], names
+post("/admin/batch", batch="ME4A", names="Nic")
+assert sqlite3.connect(km.DB_PATH).execute("SELECT 1 FROM users WHERE name='me4a-nic' AND batch_id='me4a'").fetchone()
+post("/admin/batch", batch="ME4-2", names="Alex")
+assert sqlite3.connect(km.DB_PATH).execute("SELECT 1 FROM users WHERE name='me4-2-alex' AND batch_id='me4-2'").fetchone()
+assert names == ["0521-alex", "0521-nic", "0521-sam"], names  # group-name
 
 post("/folders", name="Module 1"); post("/folders", name="Module 2")
 # each folder gets an overview page that opens at the top of the folder and can't be deleted
@@ -30,12 +34,12 @@ assert sqlite3.connect(km.DB_PATH).execute("SELECT title FROM pages WHERE id=1")
 links = km.page_links(sqlite3.connect(km.DB_PATH).execute("SELECT html FROM pages WHERE id=1").fetchone()[0])
 assert [(l["kind"], l["label"]) for l in links] == [("file", "a.pdf"), ("web", "vendor")], links
 post("/admin/perm", folder_id="1", subject="batch:0521")  # whole batch edits Module 1
-post("/admin/perm", folder_id="2", subject="0521sam")      # only sam edits Module 2
+post("/admin/perm", folder_id="2", subject="0521-sam")      # only sam edits Module 2
 
-assert b"0521nic" in c.get("/who").data  # name list renders with admins + batches
+assert b"0521-nic" in c.get("/who").data and b"Group 0521" in c.get("/who").data  # name list by group
 
 # trainee: no PIN needed
-assert post("/who", name="0521nic").status_code == 302
+assert post("/who", name="0521-nic").status_code == 302
 assert c.get("/admin").status_code == 403
 assert post("/folder/1/new", title="Router setup", html="<p>Plug in the cable</p>").status_code == 302
 assert post("/folder/2/new", title="Nope", html="x").status_code == 403  # nic can't edit Module 2
@@ -62,7 +66,7 @@ post("/folders", name="Old import")
 old = sqlite3.connect(km.DB_PATH).execute("SELECT id FROM folders WHERE name='Old import'").fetchone()[0]
 post(f"/folder/{old}/new", title="Old page", html="<p>zebra</p>")
 post("/admin/perm", folder_id=str(old), subject="batch:0521")
-post("/who", name="0521nic")
+post("/who", name="0521-nic")
 assert post(f"/folder/{old}/delete").status_code == 403
 post("/who", name="admin", pin="1234")
 assert b"Delete folder" in c.get(f"/folder/{old}").data
@@ -117,7 +121,7 @@ assert b"Drop a .drawio file here" in c.get(f"/folder/{sec}").data
 assert post(f"/folder/{sec}/section/diagram", html='<p>notes</p><p><img data-drawio="1" src="/uploads/d.png" alt="x"></p>').get_json() == \
     {"html": '<p><img data-drawio="1" src="/uploads/d.png" alt="x"></p>'}
 assert post(f"/folder/{sec}/section/nope", html="x").status_code == 404
-post("/who", name="0521nic")
+post("/who", name="0521-nic")
 assert post(f"/folder/{sec}/section/people", html="x").status_code == 403
 assert b'class="pen"' not in c.get(f"/folder/{sec}").data and b'class="who">0521nic' in c.get(f"/folder/{sec}").data
 old = '<h2>Background</h2><p>Imported.</p><h2>Network diagram</h2><p>d</p><h2>Key contacts and links</h2><p>Nic</p><h2>Files</h2><p>f</p>'
@@ -128,7 +132,7 @@ assert km.overview_sections(old) == {"background": "<p>Imported.</p>", "diagram"
 post("/who", name="admin", pin="1234")
 post("/folders", name="Docs")
 dfid = sqlite3.connect(km.DB_PATH).execute("SELECT id FROM folders WHERE name='Docs'").fetchone()[0]
-post("/admin/perm", folder_id=str(dfid), subject="0521sam")
+post("/admin/perm", folder_id=str(dfid), subject="0521-sam")
 c.post(f"/folder/{dfid}/documents/doc", data={"file": (io.BytesIO(b"PK-docx"), "Report.docx")}, content_type="multipart/form-data")
 c.post(f"/folder/{dfid}/documents/doc", data={"file": (io.BytesIO(b"MZ"), "tool.exe")}, content_type="multipart/form-data")
 c.post(f"/folder/{dfid}/documents/slides", data={"blank": "1"})
@@ -156,22 +160,22 @@ class FakeResponse(io.BytesIO):
     def __exit__(self, *a): pass
 fetched = []
 km.urllib.request.urlopen = lambda url, timeout: fetched.append(url) or FakeResponse(b"PK-edited")
-saved = {"status": 2, "url": "http://192.168.1.10:8081/cache/files/abc/output.docx?md5=1", "users": ["0521sam"]}
+saved = {"status": 2, "url": "http://192.168.1.10:8081/cache/files/abc/output.docx?md5=1", "users": ["0521-sam"]}
 assert c.post(cb_url, headers={"Authorization": "Bearer " + km.jwt_encode({"payload": saved})}, json=saved).get_json() == {"error": 0}
 assert fetched == ["http://onlyoffice/cache/files/abc/output.docx?md5=1"]  # fetched over the internal network
 row = sqlite3.connect(km.DB_PATH).execute("SELECT version, updated_by FROM documents WHERE id=?", (report,)).fetchone()
-assert row == (2, "0521sam") and c.get(f"/document/{report}/download").data == b"PK-edited"
+assert row == (2, "0521-sam") and c.get(f"/document/{report}/download").data == b"PK-edited"
 assert b"Version 1" in c.get(f"/document/{report}/versions").data
-post("/who", name="0521nic")  # no edit rights here: can read and download, not change
+post("/who", name="0521-nic")  # no edit rights here: can read and download, not change
 assert json.loads(re.search(rb'id="office-config">(.*?)</script>', c.get(f"/document/{report}").data).group(1))["editorConfig"]["mode"] == "view"
 assert c.post(f"/folder/{dfid}/documents/doc", data={"blank": "1"}).status_code == 403
 assert post(f"/document/{report}/delete").status_code == 403
 
 # Reflections: anyone adds their own; only the author or an admin changes or removes it
 assert post(f"/folder/{dfid}/reflections", html="<p>Comms were hard</p>").status_code == 200
-rid = sqlite3.connect(km.DB_PATH).execute("SELECT id FROM reflections WHERE author='0521nic'").fetchone()[0]
+rid = sqlite3.connect(km.DB_PATH).execute("SELECT id FROM reflections WHERE author='0521-nic'").fetchone()[0]
 assert post(f"/reflection/{rid}", html="<p>Comms were very hard</p>").get_json() == {"html": "<p>Comms were very hard</p>"}
-post("/who", name="0521sam")
+post("/who", name="0521-sam")
 assert post(f"/reflection/{rid}", html="hijack").status_code == 403 and post(f"/reflection/{rid}/delete").status_code == 403
 assert b"Comms were very hard" in c.get(f"/folder/{dfid}/reflections").data
 post("/who", name="admin", pin="1234")
@@ -180,7 +184,7 @@ assert post(f"/folder/{dfid}/delete").status_code == 302  # a folder with docume
 
 # AAR: title + points (observation / reflection / recommendation); anyone adds, only admins correct,
 # nobody deletes (enforced by the database)
-post("/who", name="0521nic")
+post("/who", name="0521-nic")
 assert post("/aar/new", title="Empty", observation=[""], reflection=[""], recommendation=[""]).status_code == 200  # rejected
 post("/aar/new", title="Exercise 1", observation=["Comms slow", "Kit late"], reflection=["One radio", ""],
      recommendation=["Issue two radios", "Book kit earlier"])
@@ -261,6 +265,18 @@ assert json.loads(db.execute("SELECT body FROM aar_entries WHERE title='AAR from
 counts = lambda: [db.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in ("folders", "pages", "aar_entries")]
 before = counts(); importer.main([drive]); assert counts() == before  # running again adds nothing
 assert c.get("/folder/%d" % db.execute("SELECT id FROM folders WHERE name='RivalBlocks'").fetchone()[0]).status_code == 200
+
+# accounts made before groups (group+name, e.g. "0611lee") are renamed to group-name, with their work
+db = sqlite3.connect(km.DB_PATH)
+db.execute("INSERT INTO users(name, display_name, batch_id) VALUES ('0611lee', 'Lee', '0611')")
+db.execute("INSERT INTO perms(folder_id, subject) VALUES (1, '0611lee')")
+db.execute("UPDATE pages SET updated_by='0611lee' WHERE id=1")
+db.commit()
+with km.connect() as conn:
+    km.rename_old_usernames(conn)
+assert db.execute("SELECT 1 FROM users WHERE name='0611-lee'").fetchone() and not db.execute("SELECT 1 FROM users WHERE name='0611lee'").fetchone()
+assert db.execute("SELECT subject FROM perms WHERE subject LIKE '0611%'").fetchone()[0] == "0611-lee"
+assert db.execute("SELECT updated_by FROM pages WHERE id=1").fetchone()[0] == "0611-lee"
 
 # backup copies db + uploads
 dest = tempfile.mkdtemp(); km.backup(dest)

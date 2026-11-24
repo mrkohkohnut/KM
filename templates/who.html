@@ -8,7 +8,7 @@
       <select name="name" required autofocus>
         <option value="">Choose your name</option>
         {% for b, group in groups %}
-        <optgroup label="{{ 'Batch ' ~ b if b else 'Admins' }}">
+        <optgroup label="{{ 'Group ' ~ b|upper if b else 'Admins' }}">
           {% for u in group %}<option value="{{ u.name }}" {% if g.user and g.user.name == u.name %}selected{% endif %}>{{ u.name }}</option>{% endfor %}
         </optgroup>
         {% endfor %}

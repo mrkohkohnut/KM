@@ -4,7 +4,7 @@
   <h1 class="large">Admin</h1>
   <section class="card" id="perms">
     <h2 class="cardtitle">Edit rights</h2>
-    <p class="sub">Everyone can read every folder. Admins can edit all of them. Give a whole batch or one person edit rights to a folder here.</p>
+    <p class="sub">Everyone can read every folder. Admins can edit all of them. Give a whole group or one person edit rights to a folder here.</p>
     <table>
       <thead><tr><th scope="col">Folder</th><th scope="col">Can edit</th><th scope="col"><span class="sr">Give edit rights</span></th></tr></thead>
       <tbody>
@@ -15,16 +15,16 @@
           {% for s in perms.get(f.id, []) %}
           <form method="post" action="/admin/perm" class="chip">
             <input type="hidden" name="folder_id" value="{{ f.id }}"><input type="hidden" name="subject" value="{{ s }}"><input type="hidden" name="action" value="revoke">
-            {{ s|replace('batch:', 'Batch ') }}<button title="Remove" aria-label="Remove {{ s }} from {{ f.name }}">×</button>
+            {{ 'Group ' ~ s[6:]|upper if s.startswith('batch:') else s }}<button title="Remove" aria-label="Remove {{ s }} from {{ f.name }}">×</button>
           </form>
           {% else %}<small>Admins only</small>{% endfor %}
         </td>
         <td>
           <form method="post" action="/admin/perm" class="inline">
             <input type="hidden" name="folder_id" value="{{ f.id }}">
-            <select name="subject" required aria-label="Batch or person for {{ f.name }}">
-              <option value="">Batch or person</option>
-              <optgroup label="Whole batch">{% for b in batches %}<option value="batch:{{ b.id }}">Batch {{ b.id }}</option>{% endfor %}</optgroup>
+            <select name="subject" required aria-label="Group or person for {{ f.name }}">
+              <option value="">Group or person</option>
+              <optgroup label="Whole group">{% for b in batches %}<option value="batch:{{ b.id }}">Group {{ b.id|upper }}</option>{% endfor %}</optgroup>
               <optgroup label="One person">{% for u in users %}<option>{{ u.name }}</option>{% endfor %}</optgroup>
             </select>
             <button class="plain">Give rights</button>
@@ -36,21 +36,21 @@
     </table>
   </section>
   <section class="card">
-    <h2 class="cardtitle">Batches</h2>
+    <h2 class="cardtitle">Groups</h2>
     {% for b in batches %}
-    <div class="batch"><strong>Batch {{ b.id }}</strong><small>Created {{ b.created_at|when }}</small><p>{{ b.members or 'No trainees yet' }}</p></div>
-    {% else %}<p class="note">No batches yet. Create one on the right.</p>{% endfor %}
+    <div class="batch"><strong>Group {{ b.id|upper }}</strong><small>Created {{ b.created_at|when }}</small><p>{{ b.members or 'No trainees yet' }}</p></div>
+    {% else %}<p class="note">No groups yet. Create one on the right.</p>{% endfor %}
   </section>
 </div>
 <aside class="right">
   <section class="card formcard">
-    <h2 class="cardtitle">New batch</h2>
+    <h2 class="cardtitle">New group</h2>
     <form method="post" action="/admin/batch" class="stack">
-      <label>Batch number <input name="batch" placeholder="0521" required></label>
+      <label>Group <input name="batch" placeholder="ME4A" required></label>
       <label>Trainee names <small>Separate with commas or new lines</small><textarea name="names" rows="5" placeholder="nic, sam, alex" required></textarea></label>
       <button>Create usernames</button>
     </form>
-    <p class="note">Usernames are the batch number plus the name, e.g. 0521nic. Use the same batch number again to add late joiners.</p>
+    <p class="note">Usernames are the group and the name, e.g. me4a-nic. Use the same group again to add late joiners.</p>
   </section>
   <section class="card formcard">
     <h2 class="cardtitle">Admins</h2>
