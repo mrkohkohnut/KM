@@ -49,8 +49,9 @@ CREATE TABLE IF NOT EXISTS batches(id TEXT PRIMARY KEY, created_at TEXT);
 CREATE TABLE IF NOT EXISTS users(
   name TEXT PRIMARY KEY, display_name TEXT, batch_id TEXT REFERENCES batches(id),
   is_admin INTEGER NOT NULL DEFAULT 0, pin_hash TEXT);
--- trainees belong to a group (stored as "batches"); usernames are group-name, e.g. "me4a-nic"
--- subject is a username ("me4a-nic") or a whole group ("batch:me4a")
+-- trainees belong to a group (stored as "batches"); usernames are group-name, e.g. "alpha-nic", and record who
+-- wrote or changed what (ranks are not part of them; they go in a folder's Done by)
+-- subject is a username ("alpha-nic") or a whole group ("batch:alpha")
 CREATE TABLE IF NOT EXISTS perms(folder_id INTEGER NOT NULL, subject TEXT NOT NULL, PRIMARY KEY(folder_id, subject));
 
 CREATE TABLE IF NOT EXISTS aar_entries(
@@ -1069,9 +1070,9 @@ def admin():
 @app.post("/admin/batch")
 def admin_batch():
     require_admin()
-    batch = re.sub(r"[^a-z0-9-]", "", request.form["batch"].lower()).strip("-")  # e.g. me4a, me4-2
+    batch = re.sub(r"[^a-z0-9-]", "", request.form["batch"].lower()).strip("-")  # e.g. alpha, team-2
     if not batch:
-        flash("A group name must be letters or numbers, e.g. ME4A.")
+        flash("A group name must be letters or numbers, e.g. Alpha.")
         return redirect(url_for("admin"))
     d = db()
     d.execute("INSERT OR IGNORE INTO batches(id, created_at) VALUES (?,?)", (batch, now()))

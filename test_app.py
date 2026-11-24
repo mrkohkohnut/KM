@@ -18,10 +18,10 @@ assert post("/who", name="admin", pin="1234").status_code == 302
 post("/admin/batch", batch="0521", names="Nic, sam\nAlex")
 post("/admin/batch", batch="0521", names="nic")  # duplicate is skipped
 names = [r[0] for r in sqlite3.connect(km.DB_PATH).execute("SELECT name FROM users WHERE batch_id='0521' ORDER BY name")]
-post("/admin/batch", batch="ME4A", names="Nic")
-assert sqlite3.connect(km.DB_PATH).execute("SELECT 1 FROM users WHERE name='me4a-nic' AND batch_id='me4a'").fetchone()
-post("/admin/batch", batch="ME4-2", names="Alex")
-assert sqlite3.connect(km.DB_PATH).execute("SELECT 1 FROM users WHERE name='me4-2-alex' AND batch_id='me4-2'").fetchone()
+post("/admin/batch", batch="Alpha", names="Nic")
+assert sqlite3.connect(km.DB_PATH).execute("SELECT 1 FROM users WHERE name='alpha-nic' AND batch_id='alpha'").fetchone()
+post("/admin/batch", batch="Team-2", names="Alex")
+assert sqlite3.connect(km.DB_PATH).execute("SELECT 1 FROM users WHERE name='team-2-alex' AND batch_id='team-2'").fetchone()
 assert names == ["0521-alex", "0521-nic", "0521-sam"], names  # group-name
 
 post("/folders", name="Module 1"); post("/folders", name="Module 2")

@@ -30,7 +30,7 @@ The PCs' firewalls are off, so no rule is needed. If you turn the firewall on, a
 
 ## How it's used
 
-- **Admin → Groups:** enter the group `ME4A` and the names `nic, sam`. That creates the users `me4a-nic` and `me4a-sam` (usernames are group-name). Accounts made before groups existed (e.g. `0521nic`) were renamed to this format (`0521-nic`).
+- **Admin → Groups:** enter a group, e.g. `Alpha`, and the names `nic, sam`. That creates the users `alpha-nic` and `alpha-sam` (usernames are group-name; they record who wrote or changed what). Ranks such as ME4A or ME4-2 aren't part of usernames: they go in each folder's **Done by**. Accounts made before groups existed (e.g. `0521nic`) were renamed to this format (`0521-nic`).
 - **Users:** trainees pick their name with no password. Admins need their PIN, and admin mode turns off after 2 hours idle.
 - **Admin → Who can edit:** give edit rights for a folder to a whole group or to one user. Everyone can view everything.
 - **Folder overview:** each folder's overview has Background and Network diagram, with Done by and Resources beside it. Click a section's pen to edit just that section in place, then Save. **Resources** holds files of any type up to 2 GB (e.g. packet captures) and links: use **Add file**, **Add link**, or drop files on it. The Network diagram section is a draw.io diagram only: drop a `.drawio` file on it (or click its **+** to choose one from your computer), then click the diagram to edit it in draw.io.
