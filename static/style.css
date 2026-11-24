@@ -341,3 +341,5 @@ h1.large + .card { margin-top: 18px; }
 .sheet-tabs button[aria-selected="true"] { background: var(--card); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
 .drawio-sheets figure { margin: 6px 0; }
 .drawio-sheets img { display: block; max-width: 100%; border-radius: 10px; }
+.ov-tools { display: flex; gap: 6px; }
+.pen.remove { color: var(--danger); }

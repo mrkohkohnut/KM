@@ -33,8 +33,11 @@
       <div class="ov-head">
         <h2>{{ title }}</h2>
         {% if can_edit(folder.id) and key == 'diagram' %}
-        <button type="button" class="pen" title="Import a draw.io file from your computer" aria-label="Import a draw.io file from your computer">{{ icon('plus') }}</button>
-        <input type="file" accept=".drawio,.xml,.png" hidden>
+        <div class="ov-tools">
+          <button type="button" class="pen remove" title="Remove the network diagram" aria-label="Remove the network diagram" {% if not sections[key] %}hidden{% endif %}>{{ icon('trash') }}</button>
+          <button type="button" class="pen" title="Import a draw.io file from your computer" aria-label="Import a draw.io file from your computer">{{ icon('plus') }}</button>
+          <input type="file" accept=".drawio,.xml,.png" hidden>
+        </div>
         {% elif can_edit(folder.id) %}<button type="button" class="pen" title="Edit {{ title|lower }}" aria-label="Edit {{ title|lower }}">{{ icon('pencil') }}</button>{% endif %}
       </div>
       <div class="ov-body{{ ' editable' if key == 'diagram' and can_edit(folder.id) }}" {% if key == 'diagram' and can_edit(folder.id) and sections[key] %}title="Click to edit in draw.io"{% endif %}>

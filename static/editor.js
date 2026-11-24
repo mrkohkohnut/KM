@@ -330,7 +330,8 @@ async function sheetsHtml(xml, folderId) {
 
 function diagramSection(section) {
   const body = section.querySelector('.ov-body');
-  const add = section.querySelector('.pen');
+  const add = section.querySelector('.pen:not(.remove)');
+  const remove = section.querySelector('.pen.remove');
   const picker = section.querySelector('input[type=file]');
   const folder = section.dataset.folder;
 
@@ -346,6 +347,7 @@ function diagramSection(section) {
     body.innerHTML = (await r.json()).html;
     section.dataset.empty = '';
     body.querySelectorAll('.drawio-sheets').forEach(setupSheets);
+    remove.hidden = false;
   }
   async function importFile(file) {
     if (!DIAGRAM_FILE.test(file.name)) return alert('Choose a draw.io file (.drawio).');
@@ -368,6 +370,14 @@ function diagramSection(section) {
   });
 
   add.addEventListener('click', () => picker.click());
+  remove.addEventListener('click', async () => {
+    if (!confirm('Remove the network diagram from this folder? Earlier versions stay in the overview history.')) return;
+    const fd = new FormData();
+    fd.append('html', '');
+    const r = await fetch(section.dataset.save, {method: 'POST', body: fd});
+    if (!r.ok) return alert(r.status === 403 ? 'You no longer have edit rights for this folder.' : 'Removing failed (' + r.status + ').');
+    location.reload();  // shows the empty drop zone again
+  });
   picker.addEventListener('change', () => { if (picker.files[0]) importFile(picker.files[0]); picker.value = ''; });
   body.addEventListener('click', async e => {
     const img = e.target.closest('img[data-drawio]');
