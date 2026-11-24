@@ -336,6 +336,22 @@ def all_folders():
                            FROM folders f ORDER BY f.name""").fetchall()
 
 
+def explorer():
+    """Every folder with its documents, slide decks, older pages and reflection count, for the left-hand tree."""
+    folders = [dict(f, doc=[], slides=[], pages=[], reflections=0) for f in all_folders()]
+    by_id = {f["id"]: f for f in folders}
+    for d in db().execute("SELECT id, folder_id, kind, name FROM documents ORDER BY name COLLATE NOCASE"):
+        by_id[d["folder_id"]][d["kind"]].append(d)
+    for p in db().execute("SELECT id, folder_id, title FROM pages WHERE is_readme=0 ORDER BY title COLLATE NOCASE"):
+        by_id[p["folder_id"]]["pages"].append(p)
+    for r in db().execute("SELECT folder_id, COUNT(*) AS n FROM reflections GROUP BY folder_id"):
+        by_id[r["folder_id"]]["reflections"] = r["n"]
+    return folders
+
+
+app.jinja_env.globals["explorer"] = explorer
+
+
 @app.post("/folders")
 def new_folder():
     require_admin()

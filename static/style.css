@@ -391,3 +391,38 @@ main.docpage { max-width: none; padding: 12px 16px 16px; display: flex; flex-dir
 .officeframe #office-editor, .officeframe iframe { width: 100%; height: 100%; border: 0; }
 .officeframe > .note { padding: 20px; }
 main.docpage { align-items: stretch; }
+
+/* Explorer: left-hand file tree like VS Code */
+.explorer-side h2 { text-transform: none; }
+.explorer { font-size: 13.5px; line-height: 1.2; user-select: none; }
+.explorer details > summary { list-style: none; cursor: pointer; }
+.explorer details > summary::-webkit-details-marker { display: none; }
+.explorer summary, .explorer .leaf { display: flex; align-items: center; gap: 6px; min-height: 26px; padding: 2px 8px 2px 4px; border-radius: 6px; color: var(--text); }
+.explorer summary:hover, .explorer .leaf:hover { background: var(--fill); text-decoration: none; }
+.explorer summary a { color: inherit; }
+.explorer summary a:hover { text-decoration: none; }
+.explorer [aria-current] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.explorer .grow { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.explorer small { font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.explorer .ic { width: 16px; height: 16px; }
+.explorer .twisty { display: flex; width: 14px; color: var(--sub); transition: transform .12s; }
+.explorer .twisty .ic { width: 12px; height: 12px; }
+.explorer details[open] > summary > .twisty { transform: rotate(90deg); }
+.explorer .tree-folder > summary { font-weight: 600; }
+.explorer .tree-children { margin-left: 11px; padding-left: 8px; border-left: 1px solid var(--sep); }
+.explorer .tree-group .tree-children { margin-left: 10px; }
+.explorer .leaf { padding-left: 6px; }
+.explorer .leaf.empty { color: var(--sub); font-style: italic; cursor: default; }
+.explorer .leaf.empty:hover { background: none; }
+.explorer .ic-info { color: #5856d6; display: flex; }
+.explorer .ic-doc, .explorer .ic-page { color: #007aff; display: flex; }
+.explorer .ic-slides { color: #ff9500; display: flex; }
+.explorer .ic-refl { color: var(--sub); display: flex; }
+.explorer .tree-group > summary { color: var(--sub); }
+@media (prefers-reduced-motion: reduce) { .explorer .twisty { transition: none; } }
+
+/* document page: the tree beside the editor */
+main.docpage { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 16px; align-items: stretch; }
+main.docpage .explorer-side { overflow: auto; }
+.docmain-area { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+@media (max-width: 900px) { main.docpage { grid-template-columns: minmax(0, 1fr); } main.docpage .explorer-side { display: none; } }

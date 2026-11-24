@@ -2,6 +2,8 @@
 {% from "_icons.html" import icon %}
 {% block title %}{{ d.name }}{% endblock %}{% block layout %}docpage{% endblock %}
 {% block body %}
+{% with open_folder = d.folder_id, current = 'doc:' ~ d.id %}{% include "_explorer.html" %}{% endwith %}
+<div class="docmain-area">
 <div class="docbar">
   <a class="button plain" href="{{ url_for('folder', fid=d.folder_id) }}#{{ d.kind }}">Back to {{ d.folder }}</a>
   <div class="grow"><b>{{ d.name }}</b> <small>Version {{ d.version }}{% if not editing %}, read-only{% endif %}</small></div>
@@ -14,6 +16,7 @@
 {% else %}
 <div class="empty-card"><p>Opening documents in the browser isn't set up on this KM yet (ONLYOFFICE_JWT_SECRET is missing; see the README). You can still download the file.</p></div>
 {% endif %}
+</div>
 {% endblock %}
 {% block scripts %}{% if configured %}
 <script src="{{ office }}/web-apps/apps/api/documents/api.js"></script>

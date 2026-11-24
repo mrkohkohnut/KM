@@ -2,13 +2,7 @@
 {% from "_icons.html" import icon %}
 {% block crumbs %}{% with items = [(page.folder, url_for('folder', fid=page.folder_id))] + ([] if page.is_readme else [(page.title, url_for('page', pid=page.id) if rev else None)]) + ([('Old version', None)] if rev else []) %}{% include "_crumbs.html" %}{% endwith %}{% endblock %}
 {% block body %}
-<aside class="left">
-  <h2 style="--tint: {{ spine(page.folder_id) }}"><a class="folderlink" href="{{ url_for('folder', fid=page.folder_id) }}"><span class="tinted">{{ icon('folder') }}</span>{{ page.folder }}</a></h2>
-  <nav class="sidebar" aria-label="Pages in {{ page.folder }}">
-    <a href="{{ url_for('folder', fid=page.folder_id) }}" {% if page.is_readme %}aria-current="page"{% endif %}><span class="tinted info">{{ icon('info') }}</span><span class="grow">Overview</span></a>
-    {% for s in siblings %}<a href="{{ url_for('page', pid=s.id) }}" {% if s.id == page.id %}aria-current="page"{% endif %}><span class="tinted doc">{{ icon('doc') }}</span><span class="grow">{{ s.title }}</span></a>{% endfor %}
-  </nav>
-</aside>
+{% with open_folder = page.folder_id, current = 'page:' ~ page.id %}{% include "_explorer.html" %}{% endwith %}
 <div class="center">
   {% if rev %}
   <div class="banner">{{ icon('clock') }}<span>You're viewing the version {{ rev.saved_by }} saved on {{ rev.saved_at|when }}.</span> <a href="{{ url_for('folder', fid=page.folder_id) if page.is_readme else url_for('page', pid=page.id) }}">Go to current version</a></div>

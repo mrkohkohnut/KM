@@ -74,3 +74,15 @@ document.querySelectorAll('.docs[data-upload]').forEach(card => {
     location.reload();
   });
 });
+
+// Explorer: remember which folders and groups this browser opened (the current folder always starts open).
+const TREE_KEY = 'km-explorer-open';
+let treeOpen = {};
+try { treeOpen = JSON.parse(localStorage.getItem(TREE_KEY)) || {}; } catch {}
+document.querySelectorAll('.explorer details[data-key]').forEach(d => {
+  if (!d.open && treeOpen[d.dataset.key]) d.open = true;  // what the page opens itself stays open
+  d.addEventListener('toggle', () => {
+    treeOpen[d.dataset.key] = d.open;
+    try { localStorage.setItem(TREE_KEY, JSON.stringify(treeOpen)); } catch {}
+  });
+});

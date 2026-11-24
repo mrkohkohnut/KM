@@ -2,16 +2,7 @@
 {% from "_icons.html" import icon %}
 {% block crumbs %}{% with items = [(folder.name, None)] %}{% include "_crumbs.html" %}{% endwith %}{% endblock %}
 {% block body %}
-<aside class="left">
-  <h2>Folders</h2>
-  <nav class="sidebar" aria-label="Folders">
-    {% for f in folders %}
-    <a href="{{ url_for('folder', fid=f.id) }}" style="--tint: {{ spine(f.id) }}" {% if f.id == folder.id %}aria-current="page"{% endif %}>
-      <span class="tinted">{{ icon('folder') }}</span><span class="grow">{{ f.name }}</span><small>{{ f.n or 0 }}</small>
-    </a>
-    {% endfor %}
-  </nav>
-</aside>
+{% with open_folder = folder.id, current = 'folder' %}{% include "_explorer.html" %}{% endwith %}
 <div class="center">
   <div class="titlebar" style="--tint: {{ spine(folder.id) }}">
     <span class="bigfolder">{{ icon('folder') }}</span>

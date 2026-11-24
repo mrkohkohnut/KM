@@ -117,6 +117,7 @@ assert [(k, n) for _, k, n in docs] == [("doc", "Report.docx"), ("slides", "Unti
 report = docs[0][0]
 page_html = c.get(f"/folder/{dfid}").data
 assert b"Report.docx" in page_html and b"Untitled presentation.pptx" in page_html and b"Reflections" in page_html
+assert page_html.count(b'class="tree-folder"') >= 1 and b'href="/document/' in page_html  # files listed in the left-hand tree
 config = json.loads(re.search(rb'id="office-config">(.*?)</script>', c.get(f"/document/{report}").data).group(1))
 assert config["editorConfig"]["mode"] == "edit" and km.jwt_decode(config["token"])["document"]["key"] == config["document"]["key"]
 file_url = urllib.parse.urlsplit(config["document"]["url"])
