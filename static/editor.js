@@ -404,12 +404,46 @@ function diagramSection(section) {
   });
 }
 
+// Done by: a plain box, one person per line (rank first if any). KM tidies it into a list with initials.
+function peopleSection(section, pen, body) {
+  pen.addEventListener('click', () => {
+    const shown = body.innerHTML;
+    const box = document.createElement('div');
+    box.className = 'people-edit';
+    box.innerHTML = '<textarea rows="8" aria-label="Who did this, one person per line"></textarea>'
+      + '<p class="note">One person per line, rank first if any, e.g. ME4A Koh Junyang Nicholas. Names in capitals are fine.</p>'
+      + '<div class="section-actions"><button type="button" class="plain">Cancel</button><button type="button">Save</button></div>';
+    const area = box.querySelector('textarea');
+    area.value = section.dataset.lines;
+    area.rows = Math.max(6, area.value.split('\n').length + 2);  // fits the whole list
+    body.replaceChildren(box);
+    section.classList.add('editing');
+    pen.hidden = true;
+    area.focus();
+    const close = html => { body.innerHTML = html; section.classList.remove('editing'); pen.hidden = false; };
+    const [cancel, save] = box.querySelectorAll('button');
+    cancel.addEventListener('click', () => close(shown));
+    save.addEventListener('click', async () => {
+      save.disabled = true;
+      const fd = new FormData();
+      fd.append('people', area.value);
+      const r = await fetch(section.dataset.save, {method: 'POST', body: fd});
+      if (!r.ok) { save.disabled = false; return alert('Saving failed (' + r.status + ').'); }
+      const html = (await r.json()).html;
+      section.dataset.lines = [...new DOMParser().parseFromString(html, 'text/html').querySelectorAll('li[data-rank]')]
+        .map(li => [li.dataset.rank, li.querySelector('.who').textContent].filter(Boolean).join(' ')).join('\n');
+      close(html || '<p class="note">Nothing here yet.</p>');
+    });
+  });
+}
+
 // Folder overview, other sections: the pen turns just that section into a block editor, saved in place.
 const EMPTY = '<p class="note">Nothing here yet.</p>';
 document.querySelectorAll('.ov-section[data-save]').forEach(section => {
   const pen = section.querySelector('.pen:not(.remove)');
   const body = section.querySelector('.ov-body');
   if (section.id === 'diagram') return diagramSection(section);
+  if (section.id === 'people') return peopleSection(section, pen, body);
   pen.addEventListener('click', () => {
     const shown = body.innerHTML;
     const holder = document.createElement('div');

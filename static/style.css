@@ -448,3 +448,20 @@ main.side { grid-template-columns: 250px minmax(0, 1fr); max-width: 1200px; }
 .res-actions:has(.add-link[open]) > form { order: 2; }
 #resources.dragging .group { outline: 2px dashed var(--accent); outline-offset: 2px; }
 #resources.busy { opacity: .5; pointer-events: none; }
+
+/* Done by: people with initials and rank */
+ul.people { list-style: none; margin: 0; padding: 4px 0; }
+ul.people li { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+ul.people li + li { border-top: 1px solid var(--sep); }
+ul.people .initials { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%;
+  background: linear-gradient(180deg, #5ac8fa, #007aff); color: #fff; font-size: 12px; font-weight: 600; letter-spacing: .02em; }
+ul.people .who { flex: 1; min-width: 0; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+ul.people .rank { flex: none; font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 6px; background: var(--fill); color: var(--sub); }
+aside #people .ov-body { padding: 4px 14px; }
+.people-edit textarea { width: 100%; font-size: 14px; line-height: 1.5; }
+.people-edit .note { margin: 6px 2px; font-size: 12.5px; }
+aside #people ul.people { padding: 2px 0; }
+ul.people .who { white-space: normal; overflow: visible; line-height: 1.3; }
+ul.people li.rank-head { padding: 8px 0 2px; font-size: 11px; font-weight: 600; letter-spacing: .04em; color: var(--sub); border-top: 0; }
+ul.people li.rank-head + li { border-top: 0; }
+ul.people li + li.rank-head { margin-top: 4px; }

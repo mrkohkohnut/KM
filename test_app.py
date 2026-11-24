@@ -91,6 +91,12 @@ page_html = c.get(f"/folder/{sec}").data
 assert b"capture 1.pcap" in page_html and b"www.wireshark.org" in page_html
 r = post(f"/folder/{sec}/section/people", html="<ul><li>0521nic</li></ul>")
 assert r.get_json() == {"html": "<ul><li>0521nic</li></ul>"}
+# Done by typed as lines, in capitals or with commas, is tidied into a list with initials and ranks
+r = post(f"/folder/{sec}/section/people", people="ME4A KOH JUNYANG NICHOLAS\n\nME4A NG WEN ZE JASPER, CPT Alex Tan").get_json()["html"]
+assert km.people_lines(r) == ["ME4A Koh Junyang Nicholas", "ME4A Ng Wen Ze Jasper", "CPT Alex Tan"], r
+assert '<span class="initials" aria-hidden="true">KN</span>' in r and r.count('<li class="rank-head">ME4A</li>') == 1  # rank shown once
+assert b'data-lines="ME4A Koh Junyang Nicholas' in c.get(f"/folder/{sec}").data
+post(f"/folder/{sec}/section/people", html="<ul><li>0521nic</li></ul>")
 post(f"/folder/{sec}/section/background", html="<p>Game studio</p>")
 saved = km.overview_sections(sqlite3.connect(km.DB_PATH).execute(
     "SELECT html FROM pages WHERE folder_id=? AND is_readme=1", (sec,)).fetchone()[0])
@@ -111,7 +117,7 @@ assert post(f"/folder/{sec}/section/diagram", html='<p>notes</p><p><img data-dra
 assert post(f"/folder/{sec}/section/nope", html="x").status_code == 404
 post("/who", name="0521nic")
 assert post(f"/folder/{sec}/section/people", html="x").status_code == 403
-assert b'class="pen"' not in c.get(f"/folder/{sec}").data and b"0521nic</li>" in c.get(f"/folder/{sec}").data
+assert b'class="pen"' not in c.get(f"/folder/{sec}").data and b'class="who">0521nic' in c.get(f"/folder/{sec}").data
 old = '<h2>Background</h2><p>Imported.</p><h2>Network diagram</h2><p>d</p><h2>Key contacts and links</h2><p>Nic</p><h2>Files</h2><p>f</p>'
 assert km.overview_sections(old) == {"background": "<p>Imported.</p>", "diagram": "", "people": "<p>Nic</p>",
                                      "resources": "<h3>Files</h3><p>f</p>"}  # text in the diagram section is dropped

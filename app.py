@@ -403,8 +403,60 @@ def folder(fid):
     resources = db().execute("SELECT * FROM resources WHERE folder_id=? ORDER BY kind, title COLLATE NOCASE", (fid,)).fetchall()
     return render_template("folder.html", resources=resources, folder=f, readme=readme, pages=pages, editors=editors,
                            folders=all_folders(), links=page_links(readme["html"]),
-                           sections=overview_sections(readme["html"]), SECTIONS=SECTIONS,
+                           sections=overview_sections(readme["html"]), SECTIONS=SECTIONS, people_lines=people_lines,
+                           people_html=people_html,
                            documents=documents, reflections=reflections, KINDS=KINDS)
+
+
+# Done by: one person per line ("ME4A KOH JUNYANG NICHOLAS"), shown as a tidy list with initials and rank.
+RANKS = {"REC", "PTE", "LCP", "CPL", "SGT", "SSG", "MSG", "SWO", "MWO", "SLTC", "OCT", "MID", "2LT", "LTA", "CPT",
+         "MAJ", "LTC", "COL", "BG", "MG", "LG", "GEN", "DX", "MR", "MS", "MRS", "DR"}
+
+
+def split_person(line):
+    """("ME4A", "Koh Junyang Nicholas") from "ME4A KOH JUNYANG NICHOLAS"; rank is "" if there isn't one."""
+    words = line.split()
+    rank = ""
+    if len(words) > 1 and re.fullmatch(r"[A-Za-z0-9]{2,5}", words[0]) and (
+            words[0].upper() in RANKS or re.search(r"\d", words[0])):
+        rank, words = words[0].upper(), words[1:]
+    name = " ".join(words)
+    if name.isupper():  # names pasted in capitals read better in normal case
+        name = " ".join(w.capitalize() for w in words)
+    return rank, name
+
+
+def people_lines(html):
+    """The people in a Done by section as plain lines, whether saved as a people list or as older free text."""
+    saved = re.findall(r'<li data-rank="([^"]*)">.*?<span class="who">(.*?)</span>', html, re.S)
+    if saved:
+        return [htmllib.unescape(f"{rank} {who}".strip()) for rank, who in saved]
+    items = re.findall(r'<li[^>]*>(.*?)</li>', html, re.S) or re.split(r"</p>|<br\s*/?>|\n", html)
+    lines = []
+    for item in items:
+        for part in htmllib.unescape(re.sub(r"<[^>]+>", " ", item)).split(","):
+            if part.split():
+                lines.append(" ".join(part.split()))
+    return lines
+
+
+def people_html(lines):
+    """People grouped under their rank (each rank shown once), each with initials."""
+    out, current = [], None
+    for line in lines:
+        rank, name = split_person(line.strip())
+        if not name:
+            continue
+        if rank != current:
+            current = rank
+            if rank:
+                out.append(f'<li class="rank-head">{htmllib.escape(rank)}</li>')
+        words = [re.sub(r"[^A-Za-z]", "", w) for w in name.split()]
+        words = [w for w in words if w]
+        initials = (words[0][0] + (words[-1][0] if len(words) > 1 else "")).upper() if words else "?"
+        out.append(f'<li data-rank="{htmllib.escape(rank)}"><span class="initials" aria-hidden="true">{htmllib.escape(initials)}</span>'
+                   f'<span class="who">{htmllib.escape(name)}</span></li>')
+    return f'<ul class="people">{"".join(out)}</ul>' if out else ""
 
 
 @app.post("/folder/<int:fid>/section/<key>")
@@ -416,6 +468,8 @@ def save_section(fid, key):
     readme = get_or_404("SELECT * FROM pages WHERE folder_id=? AND is_readme=1", fid)
     sections = overview_sections(readme["html"])
     html = request.form.get("html", "").strip()
+    if key == "people" and "people" in request.form:  # Done by is edited as plain lines
+        html = people_html([p for line in request.form["people"].splitlines() for p in line.split(",")])
     sections[key] = diagram_only(html) if key == "diagram" else html
     save_page(readme["id"], fid, "Overview", sections_html(sections))
     return {"html": sections[key]}

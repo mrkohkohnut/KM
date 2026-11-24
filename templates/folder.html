@@ -54,16 +54,15 @@
     </div>
     {% if is_admin() %}<a class="more" href="/admin#perms">Change edit rights</a>{% endif %}
   </section>
-  {% for key in ('people',) %}
-  <section class="ov-section side" id="{{ key }}" data-folder="{{ folder.id }}" data-empty="{{ '' if sections[key] else '1' }}"
-           {% if can_edit(folder.id) %}data-save="{{ url_for('save_section', fid=folder.id, key=key) }}"{% endif %}>
+  {% set people = people_lines(sections.people) %}
+  <section class="ov-section side" id="people" data-folder="{{ folder.id }}" data-lines="{{ people|join('\n') }}"
+           {% if can_edit(folder.id) %}data-save="{{ url_for('save_section', fid=folder.id, key='people') }}"{% endif %}>
     <div class="ov-head">
-      <h2>{{ SECTIONS[key] }}</h2>
-      {% if can_edit(folder.id) %}<button type="button" class="pen" title="Edit {{ SECTIONS[key]|lower }}" aria-label="Edit {{ SECTIONS[key]|lower }}">{{ icon('pencil') }}</button>{% endif %}
+      <h2>Done by</h2>
+      {% if can_edit(folder.id) %}<button type="button" class="pen" title="Edit who did this" aria-label="Edit who did this">{{ icon('pencil') }}</button>{% endif %}
     </div>
-    <div class="ov-body content">{{ sections[key]|safe if sections[key] else '<p class="note">Nothing here yet.</p>'|safe }}</div>
+    <div class="ov-body">{{ people_html(people)|safe if people else '<p class="note">Nothing here yet.</p>'|safe }}</div>
   </section>
-  {% endfor %}
   <section class="side-resources" id="resources" {% if can_edit(folder.id) %}data-upload="{{ url_for('add_resources', fid=folder.id) }}"{% endif %}>
     <h2>Resources</h2>
     <div class="group">
